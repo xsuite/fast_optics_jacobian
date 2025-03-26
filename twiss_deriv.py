@@ -20,6 +20,22 @@ def get_twiss_param_derivative(self, src, observation):
             Dictionary containing the derivatives of Twiss parameters.
         """
 
+        if self['s', observation] < self['s', src]:
+            derivatives = {
+                'dbetx': 0.,
+                'dbety': 0.,
+                'dalfx': 0.,
+                'dalfy': 0.,
+                'dmux': 0.,
+                'dmuy': 0.,
+                'ddx': 0.,
+                'ddpx': 0.,
+                'ddy': 0.,
+                'ddpy': 0.,
+            }
+
+            return derivatives
+
         R_matrix = self.get_R_matrix(start=src, end=observation)
 
         betx_start = self['betx', src]

@@ -65,66 +65,68 @@ class FakeQuad:
 
 env = collider
 
-ivv = 1
-vv = opt.vary[ivv].name
+jac_estim = np.zeros((len(opt.targets), len(opt.vary)))
+for ivv in range(len(opt.vary)):
+    vv = opt.vary[ivv].name
 
-k1 = []
-myelems = {}
-for dd in env.ref_manager.find_deps([env.vars[vv]]):
-    if dd.__class__.__name__ == "AttrRef" and dd._key == "k1":
-        k1.append((dd._owner._key, dd._expr))
-        myelems[dd._owner._key] = FakeQuad()
+    k1 = []
+    myelems = {}
+    for dd in env.ref_manager.find_deps([env.vars[vv]]):
+        if dd.__class__.__name__ == "AttrRef" and dd._key == "k1":
+            k1.append((dd._owner._key, dd._expr))
+            myelems[dd._owner._key] = FakeQuad()
 
-fdef = env.ref_manager.mk_fun("myfun", a=env.vars[vv])
-gbl = {
-    "vars": env.ref_manager.containers["vars"]._owner.copy(),
-    "element_refs": myelems,
-}
-lcl = {}
-exec(fdef, gbl, lcl)
-fff = lcl["myfun"]
+    fdef = env.ref_manager.mk_fun("myfun", a=env.vars[vv])
+    gbl = {
+        "vars": env.ref_manager.containers["vars"]._owner.copy(),
+        "element_refs": myelems,
+    }
+    lcl = {}
+    exec(fdef, gbl, lcl)
+    fff = lcl["myfun"]
 
-import sympy
+    import sympy
 
-a = sympy.var("a")
-fff(a)
-dk1_dvv = {}
-for kk, expr in k1:
-    dd = gbl["element_refs"][kk].k1.diff(a)
-    dk1_dvv[kk] = dd
-    print(kk, "k1", expr, dd)
+    a = sympy.var("a")
+    fff(a)
+    dk1_dvv = {}
+    for kk, expr in k1:
+        dd = gbl["element_refs"][kk].k1.diff(a)
+        dk1_dvv[kk] = dd
+        print(kk, "k1", expr, dd)
 
-quad_names = [kk for kk, _ in k1]
+    quad_names = [kk for kk, _ in k1]
 
-tar_derivs = []
-# TODO make more efficient
-for tt in opt.targets:
+    # TODO make more efficient
+    for itt, tt in enumerate(opt.targets):
 
-    assert isinstance(tt.tar, tuple)
+        assert isinstance(tt.tar, tuple)
 
-    tar_quantitiy = tt.tar[0]
-    tar_place = tt.tar[1]
-    tar_weight = tt.weight
+        tar_quantitiy = tt.tar[0]
+        tar_place = tt.tar[1]
+        tar_weight = tt.weight
 
-    # Extract relevant twiss derivatives
-    twiss_derivs = {}
-    for qqnn in quad_names:
-        twiss_derivs[qqnn] = tw0.get_twiss_param_derivative(src=qqnn, observation=tar_place)
+        # Extract relevant twiss derivatives
+        twiss_derivs = {}
+        for qqnn in quad_names:
+            twiss_derivs[qqnn] = tw0.get_twiss_param_derivative(src=qqnn, observation=tar_place)
 
-        # Refer to k1 instead of k1l
-        for nn in twiss_derivs[qqnn].keys():
-            twiss_derivs[qqnn][nn] *= env[qqnn].length
+            # Refer to k1 instead of k1l
+            for nn in twiss_derivs[qqnn].keys():
+                twiss_derivs[qqnn][nn] *= env[qqnn].length
 
-    dtar_dvv = 0
-    for qqnn in quad_names:
-        dtar_dvv += twiss_derivs[qqnn]['d'+tar_quantitiy] * dk1_dvv[qqnn]
+        dtar_dvv = 0
+        for qqnn in quad_names:
+            dtar_dvv += twiss_derivs[qqnn]['d'+tar_quantitiy] * dk1_dvv[qqnn]
 
-    dtar_dvv *= tar_weight
+        dtar_dvv *= tar_weight
 
-    tar_derivs.append(dtar_dvv)
+        jac_estim[itt, ivv] = dtar_dvv
+
 
 err = opt.get_merit_function()
 jac = err.get_jacobian(err.get_x())
 
-for jj, dd in enumerate(tar_derivs):
-    print(jj, dd, jac[jj, ivv])
+i_col = 1
+for jj, tt in enumerate(opt.targets):
+    print(jj, jac_estim[jj, ivv], jac[jj, ivv])

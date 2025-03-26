@@ -1,6 +1,7 @@
 import xtrack as xt
 from xtrack._temp import lhc_match as lm
 import numpy as np
+import sympy
 import time
 
 # Add missing method to twiss table
@@ -35,6 +36,9 @@ collider.vars.vary_default['kq4.l2b2']
 tw_81_12 = line.twiss(start='ip8', end='ip2', init_at='ip1',
                                 betx=0.15, bety=0.15)
 
+line['myvar'] = 0.5 * line['kq7.l8b1']
+line['kq7.l8b1'] = '2 * myvar'
+
 
 opt = line.match(
     solve=False,
@@ -43,7 +47,7 @@ opt = line.match(
     init=tw0, init_at=xt.START,
     vary=[
         # Only IR8 quadrupoles including DS
-        xt.VaryList(['kq6.l8b1', 'kq7.l8b1', 'kq8.l8b1', 'kq9.l8b1', 'kq10.l8b1',
+        xt.VaryList(['kq6.l8b1', 'myvar', 'kq8.l8b1', 'kq9.l8b1', 'kq10.l8b1',
             'kqtl11.l8b1', 'kqt12.l8b1', 'kqt13.l8b1',
             'kq4.l8b1', 'kq5.l8b1', 'kq4.r8b1', 'kq5.r8b1',
             'kq6.r8b1', 'kq7.r8b1', 'kq8.r8b1', 'kq9.r8b1',
@@ -67,7 +71,8 @@ class FakeQuad:
 env = collider
 
 t0 = time.perf_counter()
-jac_estim = np.zeros((len(opt.targets), len(opt.vary)))
+dkq_dvv = {} # Derivatives of quadrupole strengths with respect to the knobs
+a = sympy.var("a")
 for ivv in range(len(opt.vary)):
     vv = opt.vary[ivv].name
 
@@ -87,26 +92,30 @@ for ivv in range(len(opt.vary)):
     exec(fdef, gbl, lcl)
     fff = lcl["myfun"]
 
-    import sympy
-
-    a = sympy.var("a")
     fff(a)
     dk1_dvv = {}
     for kk, expr in k1:
         dd = gbl["element_refs"][kk].k1.diff(a)
         dk1_dvv[kk] = dd
-        print(kk, "k1", expr, dd)
 
-    quad_names = [kk for kk, _ in k1]
+    dkq_dvv[vv] = dk1_dvv
 
-    # TODO make more efficient
-    for itt, tt in enumerate(opt.targets):
+t1 = time.perf_counter()
+print('Sympy derivatives in', t1-t0, 's')
 
-        assert isinstance(tt.tar, tuple)
+# TODO make more efficient
+jac_estim = np.zeros((len(opt.targets), len(opt.vary)))
+for itt, tt in enumerate(opt.targets):
 
-        tar_quantitiy = tt.tar[0]
-        tar_place = tt.tar[1]
-        tar_weight = tt.weight
+    assert isinstance(tt.tar, tuple)
+
+    tar_quantitiy = tt.tar[0]
+    tar_place = tt.tar[1]
+    tar_weight = tt.weight
+
+    for ivv in range(len(opt.vary)):
+        vv = opt.vary[ivv].name
+        quad_names = dkq_dvv[vv].keys()
 
         # Extract relevant twiss derivatives
         twiss_derivs = {}
@@ -119,11 +128,11 @@ for ivv in range(len(opt.vary)):
 
         dtar_dvv = 0
         for qqnn in quad_names:
-            dtar_dvv += twiss_derivs[qqnn]['d'+tar_quantitiy] * dk1_dvv[qqnn]
+            dtar_dvv += twiss_derivs[qqnn]['d'+tar_quantitiy] * dkq_dvv[vv][qqnn]
 
         dtar_dvv *= tar_weight
 
-        jac_estim[itt, ivv] = dtar_dvv
+    jac_estim[itt, ivv] = dtar_dvv
 t1 = time.perf_counter()
 print('Estimated in', t1-t0, 's')
 
@@ -137,6 +146,6 @@ t2_fd = time.perf_counter()
 print('Finite difference in', t2_fd-t1_fd, 's')
 
 print('\n\nEstimated Jacobian vs real Jacobian')
-i_col = 1
+i_col = 10
 for jj, tt in enumerate(opt.targets):
-    print(jj, jac_estim[jj, ivv], jac[jj, ivv])
+    print(jj, jac_estim[jj, i_col], jac[jj, i_col])

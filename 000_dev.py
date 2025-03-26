@@ -1,6 +1,7 @@
 import xtrack as xt
 from xtrack._temp import lhc_match as lm
 import numpy as np
+import time
 
 # Add missing method to twiss table
 import twiss_deriv
@@ -65,6 +66,7 @@ class FakeQuad:
 
 env = collider
 
+t0 = time.perf_counter()
 jac_estim = np.zeros((len(opt.targets), len(opt.vary)))
 for ivv in range(len(opt.vary)):
     vv = opt.vary[ivv].name
@@ -122,11 +124,19 @@ for ivv in range(len(opt.vary)):
         dtar_dvv *= tar_weight
 
         jac_estim[itt, ivv] = dtar_dvv
+t1 = time.perf_counter()
+print('Estimated in', t1-t0, 's')
 
 
 err = opt.get_merit_function()
-jac = err.get_jacobian(err.get_x())
 
+t1_fd = time.perf_counter()
+jac = err.get_jacobian(err.get_x())
+print('                                         ')
+t2_fd = time.perf_counter()
+print('Finite difference in', t2_fd-t1_fd, 's')
+
+print('\n\nEstimated Jacobian vs real Jacobian')
 i_col = 1
 for jj, tt in enumerate(opt.targets):
     print(jj, jac_estim[jj, ivv], jac[jj, ivv])

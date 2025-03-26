@@ -109,12 +109,14 @@ for itt, tt in enumerate(opt.targets):
 
     assert isinstance(tt.tar, tuple)
 
-    tar_quantitiy = tt.tar[0]
+    tar_quantity = tt.tar[0]
     tar_place = tt.tar[1]
     tar_weight = tt.weight
 
     for ivv in range(len(opt.vary)):
+
         vv = opt.vary[ivv].name
+
         quad_names = dkq_dvv[vv].keys()
 
         # Extract relevant twiss derivatives
@@ -128,11 +130,11 @@ for itt, tt in enumerate(opt.targets):
 
         dtar_dvv = 0
         for qqnn in quad_names:
-            dtar_dvv += twiss_derivs[qqnn]['d'+tar_quantitiy] * dkq_dvv[vv][qqnn]
+            dtar_dvv += twiss_derivs[qqnn]['d'+tar_quantity] * dkq_dvv[vv][qqnn]
 
         dtar_dvv *= tar_weight
 
-    jac_estim[itt, ivv] = dtar_dvv
+        jac_estim[itt, ivv] = dtar_dvv
 t1 = time.perf_counter()
 print('Estimated in', t1-t0, 's')
 
@@ -146,6 +148,6 @@ t2_fd = time.perf_counter()
 print('Finite difference in', t2_fd-t1_fd, 's')
 
 print('\n\nEstimated Jacobian vs real Jacobian')
-i_col = 10
+i_col = 0
 for jj, tt in enumerate(opt.targets):
     print(jj, jac_estim[jj, i_col], jac[jj, i_col])

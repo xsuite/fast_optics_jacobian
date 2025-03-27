@@ -103,7 +103,28 @@ for ivv in range(len(opt.vary)):
 t1 = time.perf_counter()
 print('Sympy derivatives in', t1-t0, 's')
 
-# TODO make more efficient
+all_quad_sources = set()
+for vv in dkq_dvv.keys():
+    all_quad_sources.update(dkq_dvv[vv].keys())
+
+target_places = set()
+for tt in opt.targets:
+    assert isinstance(tt.tar, tuple)
+    target_places.add(tt.tar[1])
+
+twiss_derivs = {}
+for qqnn in all_quad_sources:
+    twiss_derivs[qqnn] = {}
+    for tt in target_places:
+        twiss_derivs[qqnn][tt] = tw0.get_twiss_param_derivative(src=qqnn, observation=tt)
+
+        # Refer to k1 instead of k1l
+        for nn in twiss_derivs[qqnn][tt].keys():
+            twiss_derivs[qqnn][tt][nn] *= env[qqnn].length
+
+t2 = time.perf_counter()
+print('Twiss derivatives in', t2-t1, 's')
+
 jac_estim = np.zeros((len(opt.targets), len(opt.vary)))
 for itt, tt in enumerate(opt.targets):
 
@@ -119,18 +140,9 @@ for itt, tt in enumerate(opt.targets):
 
         quad_names = dkq_dvv[vv].keys()
 
-        # Extract relevant twiss derivatives
-        twiss_derivs = {}
-        for qqnn in quad_names:
-            twiss_derivs[qqnn] = tw0.get_twiss_param_derivative(src=qqnn, observation=tar_place)
-
-            # Refer to k1 instead of k1l
-            for nn in twiss_derivs[qqnn].keys():
-                twiss_derivs[qqnn][nn] *= env[qqnn].length
-
         dtar_dvv = 0
         for qqnn in quad_names:
-            dtar_dvv += twiss_derivs[qqnn]['d'+tar_quantity] * dkq_dvv[vv][qqnn]
+            dtar_dvv += twiss_derivs[qqnn][tar_place]['d'+tar_quantity] * dkq_dvv[vv][qqnn]
 
         dtar_dvv *= tar_weight
 

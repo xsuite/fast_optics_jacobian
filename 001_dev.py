@@ -11,9 +11,9 @@ import twiss_deriv
 
 # Load LHC model
 collider = xt.Environment.from_json(
-    '../xtrack/test_data/hllhc15_thick/hllhc15_collider_thick.json')
+    '../../xtrack/test_data/hllhc15_thick/hllhc15_collider_thick.json')
 collider.vars.load_madx(
-    '../xtrack/test_data/hllhc15_thick/opt_round_150_1500.madx')
+    '../../xtrack/test_data/hllhc15_thick/opt_round_150_1500.madx')
 
 collider.build_trackers()
 
@@ -66,3 +66,7 @@ opt.check_limits = False
 # Match for target bety: 0.15 --> [0.1, 0.14, 0.149, 0.1499, 0.15]
 
 opt.target_status()
+
+import jacobian_mod as jacmod
+
+opt.step(40)

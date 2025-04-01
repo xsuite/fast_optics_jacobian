@@ -54,7 +54,8 @@ def get_dependency_derivatives(env, opt):
     return all_quad_sources, target_places, dkq_dvv
 ############################################################### here new twiss needed
 
-def get_jac(env, opt, all_quad_sources, target_places, dkq_dvv, tw0):
+def get_jac(line, opt, all_quad_sources, target_places, dkq_dvv):
+    tw0 = line.twiss()
     twiss_derivs = {}
     for qqnn in all_quad_sources:
         twiss_derivs[qqnn] = {}
@@ -63,7 +64,7 @@ def get_jac(env, opt, all_quad_sources, target_places, dkq_dvv, tw0):
 
             # Refer to k1 instead of k1l
             for nn in twiss_derivs[qqnn][tt].keys():
-                twiss_derivs[qqnn][tt][nn] *= env[qqnn].length
+                twiss_derivs[qqnn][tt][nn] *= line[qqnn].length
 
     jac_estim = np.zeros((len(opt.targets), len(opt.vary)))
     for itt, tt in enumerate(opt.targets):
@@ -88,11 +89,41 @@ def get_jac(env, opt, all_quad_sources, target_places, dkq_dvv, tw0):
 
             jac_estim[itt, ivv] = dtar_dvv
 
+    return jac_estim
+
 def get_jacobian(self, x, f0=None):
-    x = np.array(x).copy()
-    steps = self._knobs_to_x(self.steps_for_jacobian)
-    # get twiss
-    tw0 = self.actions[0].line.twiss()
-    print(f"TWISS = f{tw0}")
+    if len(self.targets) == 12 and len(self.vary) == 20:
+        x = np.array(x).copy()
+        steps = self._knobs_to_x(self.steps_for_jacobian)
+        # get twiss
+        env_line = self.actions[0].line
+        global all_quad_sources, target_places, dkq_dvv
+        if all_quad_sources is None or target_places is None or dkq_dvv is None:
+            all_quad_sources, target_places, dkq_dvv = get_dependency_derivatives(env_line, self)
+        jacobian = get_jac(env_line, self, all_quad_sources, target_places, dkq_dvv)
+        return jacobian
+    else:
+        if hasattr(self, "_force_jacobian"):
+            return self._force_jacobian
+        x = np.array(x).copy()
+        steps = self._knobs_to_x(self.steps_for_jacobian)
+        assert len(x) == len(steps)
+        if f0 is None:
+            f0 = self(x)
+        if np.isscalar(f0):
+            jac = np.zeros((1, len(x)))
+        else:
+            jac = np.zeros((len(f0), len(x)))
+        mask_input = self.mask_input
+        for ii in range(len(x)):
+            if not mask_input[ii]:
+                continue
+            x[ii] += steps[ii]
+            jac[:, ii] = (self(x, check_limits=False) - f0) / steps[ii]
+            x[ii] -= steps[ii]
+
+        self._last_jac = jac
+        return jac
+
 
 xd.optimize.optimize.MeritFunctionForMatch.get_jacobian = get_jacobian

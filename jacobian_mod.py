@@ -5,9 +5,10 @@ import sympy
 all_quad_sources = None
 target_places = None
 dkq_dvv = None
+points = None
 
 def get_dependency_derivatives():
-    return all_quad_sources, target_places, dkq_dvv
+    return all_quad_sources, target_places, dkq_dvv, points
 
 # collider, opt
 def get_dependency_derivatives(line, opt):
@@ -59,7 +60,7 @@ def get_dependency_derivatives(line, opt):
         points[qqnn] = []
         for ii, ss in enumerate(s_slice):
             nn_point = qqnn + f'_p{ii}'
-            insertions.append(line.new(nn_point, 'marker', at=ss)) ############## env needed!!
+            insertions.append(line.env.new(nn_point, 'marker', at=ss))
             points[qqnn].append(nn_point)
     line.insert(insertions)
 
@@ -75,22 +76,22 @@ def get_jac(line, opt, all_quad_sources, target_places, dkq_dvv, points):
     twiss_derivs = {}
     for qqnn in all_quad_sources:
         twiss_derivs[qqnn] = {}
-    for tt in target_places:
-        twiss_derivs[qqnn][tt] = {}
-        for qqnn_p in points[qqnn]:
-            twiss_derivs[qqnn][tt][qqnn_p] = tw0.get_twiss_param_derivative(src=qqnn_p, observation=tt)
+        for tt in target_places:
+            twiss_derivs[qqnn][tt] = {}
+            for qqnn_p in points[qqnn]:
+                twiss_derivs[qqnn][tt][qqnn_p] = tw0.get_twiss_param_derivative(src=qqnn_p, observation=tt)
 
-        # Refer to k1 instead of k1l
-            for nn in twiss_derivs[qqnn][tt][qqnn_p].keys():
-                twiss_derivs[qqnn][tt][qqnn_p][nn] *= line[qqnn].length
+            # Refer to k1 instead of k1l
+                for nn in twiss_derivs[qqnn][tt][qqnn_p].keys():
+                    twiss_derivs[qqnn][tt][qqnn_p][nn] *= line[qqnn].length
 
-        # Take the mean of all points preserving the keys
-        mean_values = {}
-        for qqnn_p in points[qqnn]:
-            for nn, val in twiss_derivs[qqnn][tt][qqnn_p].items():
-                mean_values.setdefault(nn, []).append(val)
+            # Take the mean of all points preserving the keys
+            mean_values = {}
+            for qqnn_p in points[qqnn]:
+                for nn, val in twiss_derivs[qqnn][tt][qqnn_p].items():
+                    mean_values.setdefault(nn, []).append(val)
 
-        twiss_derivs[qqnn][tt] = {nn: np.mean(val) for nn, val in mean_values.items()}
+            twiss_derivs[qqnn][tt] = {nn: np.mean(val) for nn, val in mean_values.items()}
 
     jac_estim = np.zeros((len(opt.targets), len(opt.vary)))
     for itt, tt in enumerate(opt.targets):
@@ -123,8 +124,8 @@ def get_jacobian(self, x, f0=None):
         steps = self._knobs_to_x(self.steps_for_jacobian)
         # get twiss
         env_line = self.actions[0].line
-        global all_quad_sources, target_places, dkq_dvv
-        if all_quad_sources is None or target_places is None or dkq_dvv is None:
+        global all_quad_sources, target_places, dkq_dvv, points
+        if all_quad_sources is None or target_places is None or dkq_dvv is None or points is None:
             all_quad_sources, target_places, dkq_dvv, points = get_dependency_derivatives(env_line, self)
         jacobian = get_jac(env_line, self, all_quad_sources, target_places, dkq_dvv, points)
         return jacobian

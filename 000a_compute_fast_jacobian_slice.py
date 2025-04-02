@@ -3,15 +3,16 @@ from xtrack._temp import lhc_match as lm
 import numpy as np
 import sympy
 import time
+from collections import defaultdict
 
 # Add missing method to twiss table
 import twiss_deriv
 
 # Load LHC model
 collider = xt.Environment.from_json(
-    '../../xtrack/test_data/hllhc15_thick/hllhc15_collider_thick.json')
+    '../xtrack/test_data/hllhc15_thick/hllhc15_collider_thick.json')
 collider.vars.load_madx(
-    '../../xtrack/test_data/hllhc15_thick/opt_round_150_1500.madx')
+    '../xtrack/test_data/hllhc15_thick/opt_round_150_1500.madx')
 
 collider.build_trackers()
 
@@ -130,15 +131,28 @@ for tt in opt.targets:
     assert isinstance(tt.tar, tuple)
     target_places.add(tt.tar[1])
 
+tw0 = line.twiss()
+
 twiss_derivs = {}
 for qqnn in all_quad_sources:
     twiss_derivs[qqnn] = {}
     for tt in target_places:
-        twiss_derivs[qqnn][tt] = tw0.get_twiss_param_derivative(src=qqnn, observation=tt)
+        twiss_derivs[qqnn][tt] = {}
+        for qqnn_p in points[qqnn]:
+            twiss_derivs[qqnn][tt][qqnn_p] = tw0.get_twiss_param_derivative(src=qqnn_p, observation=tt)
 
         # Refer to k1 instead of k1l
-        for nn in twiss_derivs[qqnn][tt].keys():
-            twiss_derivs[qqnn][tt][nn] *= env[qqnn].length
+            for nn in twiss_derivs[qqnn][tt][qqnn_p].keys():
+                twiss_derivs[qqnn][tt][qqnn_p][nn] *= env[qqnn].length
+
+        # Take the mean of all points preserving the keys
+        mean_values = {}
+        for qqnn_p in points[qqnn]:
+            for nn, val in twiss_derivs[qqnn][tt][qqnn_p].items():
+                mean_values.setdefault(nn, []).append(val)
+
+        twiss_derivs[qqnn][tt] = {nn: np.mean(val) for nn, val in mean_values.items()}
+
 
 t2 = time.perf_counter()
 print('Twiss derivatives in', t2-t1, 's')

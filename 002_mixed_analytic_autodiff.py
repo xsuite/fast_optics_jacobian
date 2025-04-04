@@ -72,9 +72,9 @@ def get_transfer_matrix_quad(k1, l):
 
     f_matrix = jnp.array([
         [cx, sx, 0, 0],
-        [-kx**2 * sx, cx, 0, 0],
+        [-k1 * sx, cx, 0, 0],
         [0, 0, cy, sy],
-        [0, 0, -ky**2 * sy, cy]
+        [0, 0, k1 * sy, cy]
     ])
 
     return f_matrix.real
@@ -95,12 +95,16 @@ def get_values_from_transfer_matrix(transfer_matrix, tw0):
                              (transfer_matrix[1, 0] * tw0.betx[0] - transfer_matrix[1, 1] * tw0.alfx[0]) + transfer_matrix[0, 1] * transfer_matrix[1, 1])
     alfy = -1/tw0.bety[0] * ((transfer_matrix[2, 2] * tw0.bety[0] - transfer_matrix[2, 3] * tw0.alfy[0]) *
                              (transfer_matrix[3, 2] * tw0.bety[0] - transfer_matrix[3, 3] * tw0.alfy[0]) + transfer_matrix[2, 3] * transfer_matrix[3, 3])
+    mux = tw0.mux[0] + jnp.arctan2(transfer_matrix[0, 1], transfer_matrix[0, 0] * tw0.betx[0] - transfer_matrix[0, 1] * tw0.alfx[0]) / (2 * jnp.pi)
+    muy = tw0.muy[0] + jnp.arctan2(transfer_matrix[2, 3], transfer_matrix[2, 2] * tw0.bety[0] - transfer_matrix[2, 3] * tw0.alfy[0]) / (2 * jnp.pi)
 
     param_dict = {
         'betx': betx,
         'bety': bety,
         'alfx': alfx,
         'alfy': alfy,
+        'mux': mux,
+        'muy': muy,
     }
     return param_dict
 
@@ -116,8 +120,8 @@ def derive_values_by_backtrack(line, tw0):
     # Calculate the total transfer matrix
     total_transfer_matrix = np.eye(4)
     for tm in reversed(transfer_matrices):
-        total_transfer_matrix = tm @ total_transfer_matrix
-
+        total_transfer_matrix = total_transfer_matrix @ tm
+    print(total_transfer_matrix)
     values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
 
     return values
@@ -139,7 +143,7 @@ def compute_param_derivatives(line, tw0):
 
         total_transfer_matrix = jnp.eye(4)
         for tm in reversed(transfer_matrices):
-            total_transfer_matrix = tm @ total_transfer_matrix
+            total_transfer_matrix = total_transfer_matrix @ tm
         values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
         return values
 
@@ -147,6 +151,26 @@ def compute_param_derivatives(line, tw0):
 
 
 import sympy as sp
+
+def get_values_from_transfer_matrix_sp(transfer_matrix, tw0):
+    betx = 1/tw0.betx[0] * ((transfer_matrix[0, 0] * tw0.betx[0] - transfer_matrix[0, 1] * tw0.alfx[0])**2 + transfer_matrix[0, 1]**2)
+    bety = 1/tw0.bety[0] * ((transfer_matrix[2, 2] * tw0.bety[0] - transfer_matrix[2, 3] * tw0.alfy[0])**2 + transfer_matrix[2, 3]**2)
+    alfx = -1/tw0.betx[0] * ((transfer_matrix[0, 0] * tw0.betx[0] - transfer_matrix[0, 1] * tw0.alfx[0]) *
+                             (transfer_matrix[1, 0] * tw0.betx[0] - transfer_matrix[1, 1] * tw0.alfx[0]) + transfer_matrix[0, 1] * transfer_matrix[1, 1])
+    alfy = -1/tw0.bety[0] * ((transfer_matrix[2, 2] * tw0.bety[0] - transfer_matrix[2, 3] * tw0.alfy[0]) *
+                             (transfer_matrix[3, 2] * tw0.bety[0] - transfer_matrix[3, 3] * tw0.alfy[0]) + transfer_matrix[2, 3] * transfer_matrix[3, 3])
+    mux = tw0.mux[0] + sp.atan(transfer_matrix[0, 1] / (transfer_matrix[0, 0] * tw0.betx[0] - transfer_matrix[0, 1] * tw0.alfx[0])) / (2 * sp.pi)
+    muy = tw0.muy[0] + sp.atan(transfer_matrix[2, 3] / (transfer_matrix[2, 2] * tw0.bety[0] - transfer_matrix[2, 3] * tw0.alfy[0])) / (2 * sp.pi)
+
+    param_dict = {
+        'betx': betx,
+        'bety': bety,
+        'alfx': alfx,
+        'alfy': alfy,
+        'mux': mux,
+        'muy': muy,
+    }
+    return param_dict
 
 def get_transfer_matrix_quad_sym(k1, l):
     kx = sp.sqrt(k1)
@@ -188,9 +212,9 @@ def compute_beta_derivative_sym(line, tw0):
 
     total_transfer_matrix = sp.eye(4)
     for tm in reversed(transfer_matrices):
-        total_transfer_matrix = tm @ total_transfer_matrix
+        total_transfer_matrix = total_transfer_matrix @ tm
 
-    betx_sym = get_values_from_transfer_matrix(total_transfer_matrix, tw0)['alfx']
+    betx_sym = get_values_from_transfer_matrix_sp(total_transfer_matrix, tw0)['alfy']
 
     beta_derivatives = [sp.diff(betx_sym, k1) for k1 in k1_vars]
 
@@ -199,17 +223,21 @@ def compute_beta_derivative_sym(line, tw0):
 print("-----------------------------------------------------------")
 print(f"Compare Twiss parameters and Backtracked parameters")
 
+backtracked_values = derive_values_by_backtrack(line, tw0)
+
 print(tabulate([
-    ['betx', tw0.betx[-1], derive_values_by_backtrack(line, tw0)['betx']],
-    ['bety', tw0.bety[-1], derive_values_by_backtrack(line, tw0)['bety']],
-    ['alfx', tw0.alfx[-1], derive_values_by_backtrack(line, tw0)['alfx']],
-    ['alfy', tw0.alfy[-1], derive_values_by_backtrack(line, tw0)['alfy']],
+    ['betx', tw0.betx[-1], backtracked_values['betx']],
+    ['bety', tw0.bety[-1], backtracked_values['bety']],
+    ['alfx', tw0.alfx[-1], backtracked_values['alfx']],
+    ['alfy', tw0.alfy[-1], backtracked_values['alfy']],
+    ['mux', tw0.mux[-1], backtracked_values['mux']],
+    ['muy', tw0.muy[-1], backtracked_values['muy']],
 ], tablefmt="fancy_grid", headers=["Parameter", "Twiss", "Backtracked"]))
 
 print("-----------------------------------------------------------")
-print("Finite difference gradient betx: ", grads_fd['alfx'])
+print("Finite difference gradient betx: ", grads_fd['alfy'])
 
-print(f"Automatic betx gradient: {compute_param_derivatives(line, tw0)['alfx']}")
+print(f"Automatic betx gradient: {compute_param_derivatives(line, tw0)['alfy']}")
 
 deriv_sympy, symbols = compute_beta_derivative_sym(line, tw0)
 sympy_grad = []

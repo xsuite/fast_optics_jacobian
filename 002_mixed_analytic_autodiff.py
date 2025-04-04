@@ -177,9 +177,6 @@ def get_transfer_matrix_drift_sym(l):
         [0, 0, 0, 1]
     ])
 
-def get_betx_from_transfer_matrix_sym(transfer_matrix, betx0, alfx0):
-    return 1 / betx0 * ((transfer_matrix[0, 0] * betx0 - transfer_matrix[0, 1] * alfx0)**2 + transfer_matrix[0, 1]**2)
-
 def compute_beta_derivative_sym(line, tw0):
     quadrupoles = [line.elements[i] for i in range(len(line.elements)) if isinstance(line.elements[i], xt.Quadrupole)]
     k1_vars = [sp.Symbol(f'k1_{i}') for i, _ in enumerate(quadrupoles)]

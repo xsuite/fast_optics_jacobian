@@ -1,9 +1,8 @@
 import xtrack as xt
 import numpy as np
-import matplotlib.pyplot as plt
 import jax.numpy as jnp
 import jax
-import twiss_deriv
+from tabulate import tabulate
 
 env = xt.Environment()
 env.particle_ref = xt.Particles(p0c=7e12)
@@ -34,11 +33,9 @@ opt.solve()
 
 tw0 = line.twiss4d(start=xt.START, end=xt.END, betx=0.15, bety=0.15)
 
-eps = 1e-6
-
-grad = []
-
 quadrupoles = [elem for elem in line.elements if isinstance(elem, xt.Quadrupole)]
+eps = 1e-6
+grads_fd = []
 for quad in quadrupoles:
     quad.k1 += eps
     tw_plus = line.twiss4d(init=tw0, start=xt.START, end=xt.END)
@@ -58,12 +55,10 @@ for quad in quadrupoles:
     'dy': (tw_plus.dy[-1] - tw_minus.dy[-1]) / (2 * eps),
     'dpy': (tw_plus.dpy[-1] - tw_minus.dpy[-1]) / (2 * eps),
     }
-    grad.append(fd_dict)
+    grads_fd.append(fd_dict)
 
 # Reorder list of dictionaries to have Dictionary of lists
-fd_dict = {key: [d[key] for d in grad] for key in grad[0].keys()}
-
-elements = line.elements
+grads_fd = {key: [d[key] for d in grads_fd] for key in grads_fd[0].keys()}
 
 def get_transfer_matrix_quad(k1, l):
     kx = jnp.sqrt(k1.astype(complex))
@@ -91,15 +86,23 @@ def get_transfer_matrix_drift(l):
     ])
     return f_matrix
 
-def get_betx_from_transfer_matrix(transfer_matrix, betx0, alfx0):
-    betx = 1/betx0 * ((transfer_matrix[0, 0] * betx0 - transfer_matrix[0, 1] * alfx0)**2 + transfer_matrix[0, 1]**2)
-    return betx
+def get_values_from_transfer_matrix(transfer_matrix, tw0):
+    betx = 1/tw0.betx[0] * ((transfer_matrix[0, 0] * tw0.betx[0] - transfer_matrix[0, 1] * tw0.alfx[0])**2 + transfer_matrix[0, 1]**2)
+    bety = 1/tw0.bety[0] * ((transfer_matrix[2, 2] * tw0.bety[0] - transfer_matrix[2, 3] * tw0.alfy[0])**2 + transfer_matrix[2, 3]**2)
+    alfx = -1/tw0.betx[0] * ((transfer_matrix[0, 0] * tw0.betx[0] - transfer_matrix[0, 1] * tw0.alfx[0]) *
+                             (transfer_matrix[1, 0] * tw0.betx[0] - transfer_matrix[1, 1] * tw0.alfx[0]) + transfer_matrix[0, 1] * transfer_matrix[1, 1])
+    alfy = -1/tw0.bety[0] * ((transfer_matrix[2, 2] * tw0.bety[0] - transfer_matrix[2, 3] * tw0.alfy[0]) *
+                             (transfer_matrix[3, 2] * tw0.bety[0] - transfer_matrix[3, 3] * tw0.alfy[0]) + transfer_matrix[2, 3] * transfer_matrix[3, 3])
 
-def get_bety_from_transfer_matrix(transfer_matrix, bety0, alfy0):
-    bety = 1/bety0 * ((transfer_matrix[2, 2] * bety0 - transfer_matrix[2, 3] * alfy0)**2 + transfer_matrix[2, 3]**2)
-    return bety
+    param_dict = {
+        'betx': betx,
+        'bety': bety,
+        'alfx': alfx,
+        'alfy': alfy,
+    }
+    return param_dict
 
-def derive_beta_by_backtrack(line, tw0):
+def derive_values_by_backtrack(line, tw0):
     # Get the transfer matrix for each element
     transfer_matrices = []
     for elem in line.elements:
@@ -115,7 +118,7 @@ def derive_beta_by_backtrack(line, tw0):
 
     # Calculate the beta function at the end of the line
 
-    betx_end = get_betx_from_transfer_matrix(total_transfer_matrix, tw0.betx[0], tw0.alfx[0])
+    betx_end = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
 
     return betx_end
 
@@ -140,7 +143,7 @@ def compute_betx_derivative(line, tw0):
         total_transfer_matrix = jnp.eye(4)
         for tm in reversed(transfer_matrices):
             total_transfer_matrix = tm @ total_transfer_matrix
-        betx_end = get_betx_from_transfer_matrix(total_transfer_matrix, tw0.betx[0], tw0.alfx[0])
+        betx_end = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
 
         return betx_end
 
@@ -178,13 +181,13 @@ def get_betx_from_transfer_matrix_sym(transfer_matrix, betx0, alfx0):
     return 1 / betx0 * ((transfer_matrix[0, 0] * betx0 - transfer_matrix[0, 1] * alfx0)**2 + transfer_matrix[0, 1]**2)
 
 def compute_beta_derivative_sym(line, tw0):
-    k1_vars = [sp.Symbol(f'k1_{i}') for i, elem in enumerate(line.elements) if isinstance(elem, xt.Quadrupole)]
-    print(f"Symbols for k1: {k1_vars}")
+    quadrupoles = [line.elements[i] for i in range(len(line.elements)) if isinstance(line.elements[i], xt.Quadrupole)]
+    k1_vars = [sp.Symbol(f'k1_{i}') for i, _ in enumerate(quadrupoles)]
 
     transfer_matrices = []
     k1_index = 0
     for elem in line.elements:
-        if isinstance(elem, xt.Quadrupole) or isinstance(elem, xt.Multipole):
+        if isinstance(elem, xt.Quadrupole):
             transfer_matrices.append(get_transfer_matrix_quad_sym(k1_vars[k1_index], elem.length))
             k1_index += 1
         elif isinstance(elem, xt.Drift):
@@ -194,24 +197,30 @@ def compute_beta_derivative_sym(line, tw0):
     for tm in reversed(transfer_matrices):
         total_transfer_matrix = tm @ total_transfer_matrix
 
-    betx_sym = get_betx_from_transfer_matrix_sym(total_transfer_matrix, tw0.betx[0], tw0.alfx[0])
+    betx_sym = get_values_from_transfer_matrix(total_transfer_matrix, tw0)['betx']
 
     beta_derivatives = [sp.diff(betx_sym, k1) for k1 in k1_vars]
 
-    return beta_derivatives
+    return beta_derivatives, k1_vars
 
+print("-----------------------------------------------------------")
+print(f"Compare Twiss parameters and Backtracked parameters")
 
+print(tabulate([
+    ['betx', tw0.betx[-1], derive_values_by_backtrack(line, tw0)['betx']],
+    ['bety', tw0.bety[-1], derive_values_by_backtrack(line, tw0)['bety']],
+    ['alfx', tw0.alfx[-1], derive_values_by_backtrack(line, tw0)['alfx']],
+    ['alfy', tw0.alfy[-1], derive_values_by_backtrack(line, tw0)['alfy']],
+], tablefmt="fancy_grid", headers=["Parameter", "Twiss", "Backtracked"]))
 
-print(f'Betx by twiss: {tw0.betx[-1]}\nBetx by backtrack: {derive_beta_by_backtrack(line, tw0)}')
+print("-----------------------------------------------------------")
+print("Finite difference gradient betx: ", grads_fd['betx'])
 
-print("--------------------------------------")
-print(f"Computed betx Derivative: {compute_betx_derivative(line, tw0)}")
+print(f"Automatic betx gradient: {compute_betx_derivative(line, tw0)['betx']}")
 
-print("Finite difference gradient betx: ", fd_dict['betx'])
-
-deriv_sympy = compute_beta_derivative_sym(line, tw0)
-
+deriv_sympy, symbols = compute_beta_derivative_sym(line, tw0)
+sympy_grad = []
 # Evaluate sympy expressions and print
-for i, elem in enumerate(quadrupoles):
-    if isinstance(elem, xt.Quadrupole):
-        print(f"Symbolic Derivative of betx w.r.t k1 for element: {deriv_sympy[i].evalf(subs={f'k1_0': quadrupoles[0].k1, f'k1_3': quadrupoles[1].k1})}")
+for i, elem, symbol in zip(range(len(quadrupoles)), quadrupoles, symbols):
+    sympy_grad.append(deriv_sympy[i].evalf(subs={symbol: quadrupole.k1 for symbol, quadrupole in zip(symbols, quadrupoles)}))
+print(f"Sympy gradient: {sympy_grad}")

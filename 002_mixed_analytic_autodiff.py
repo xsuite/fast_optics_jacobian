@@ -57,6 +57,8 @@ for quad in quadrupoles:
     }
     grads_fd.append(fd_dict)
 
+tw0 = line.twiss4d(start=xt.START, end=xt.END, betx=0.15, bety=0.15)
+
 # Reorder list of dictionaries to have Dictionary of lists
 grads_fd = {key: [d[key] for d in grads_fd] for key in grads_fd[0].keys()}
 
@@ -70,9 +72,9 @@ def get_transfer_matrix_quad(k1, l):
 
     f_matrix = jnp.array([
         [cx, sx, 0, 0],
-        [-k1 * sx, cx, 0, 0],
-        [0, 0, cy, sy / ky],
-        [0, 0, k1 * sy, cy]
+        [-kx**2 * sx, cx, 0, 0],
+        [0, 0, cy, sy],
+        [0, 0, -ky**2 * sy, cy]
     ])
 
     return f_matrix.real
@@ -139,7 +141,6 @@ def compute_param_derivatives(line, tw0):
         for tm in reversed(transfer_matrices):
             total_transfer_matrix = tm @ total_transfer_matrix
         values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
-
         return values
 
     return jax.jacfwd(get_values)(jnp.array([elem.k1 for elem in line.elements if isinstance(elem, xt.Quadrupole)]))
@@ -158,7 +159,7 @@ def get_transfer_matrix_quad_sym(k1, l):
     f_matrix = sp.Matrix([
         [cx, sx, 0, 0],
         [-k1 * sx, cx, 0, 0],
-        [0, 0, cy, sy / ky],
+        [0, 0, cy, sy],
         [0, 0, k1 * sy, cy]
     ])
 
@@ -189,7 +190,7 @@ def compute_beta_derivative_sym(line, tw0):
     for tm in reversed(transfer_matrices):
         total_transfer_matrix = tm @ total_transfer_matrix
 
-    betx_sym = get_values_from_transfer_matrix(total_transfer_matrix, tw0)['betx']
+    betx_sym = get_values_from_transfer_matrix(total_transfer_matrix, tw0)['alfx']
 
     beta_derivatives = [sp.diff(betx_sym, k1) for k1 in k1_vars]
 
@@ -206,9 +207,9 @@ print(tabulate([
 ], tablefmt="fancy_grid", headers=["Parameter", "Twiss", "Backtracked"]))
 
 print("-----------------------------------------------------------")
-print("Finite difference gradient betx: ", grads_fd['betx'])
+print("Finite difference gradient betx: ", grads_fd['alfx'])
 
-print(f"Automatic betx gradient: {compute_param_derivatives(line, tw0)['betx']}")
+print(f"Automatic betx gradient: {compute_param_derivatives(line, tw0)['alfx']}")
 
 deriv_sympy, symbols = compute_beta_derivative_sym(line, tw0)
 sympy_grad = []

@@ -116,14 +116,12 @@ def derive_values_by_backtrack(line, tw0):
     for tm in reversed(transfer_matrices):
         total_transfer_matrix = tm @ total_transfer_matrix
 
-    # Calculate the beta function at the end of the line
+    values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
 
-    betx_end = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
+    return values
 
-    return betx_end
-
-def compute_betx_derivative(line, tw0):
-    def get_betx(k1_arr):
+def compute_param_derivatives(line, tw0):
+    def get_values(k1_arr):
         transfer_matrices = []
         # assert that you have the same number of quadrupoles as k1_arr
         assert len(k1_arr) == len([elem for elem in line.elements if isinstance(elem, xt.Quadrupole)])
@@ -134,20 +132,17 @@ def compute_betx_derivative(line, tw0):
             if isinstance(elem, xt.Quadrupole):
                 transfer_matrices.append(get_transfer_matrix_quad(k1_arr[i], elem.length))
                 i += 1
-            elif isinstance(elem, xt.Multipole):
-                transfer_matrices.append(get_transfer_matrix_quad(k1_arr[i], 1.0))
-                i += 1
             elif isinstance(elem, xt.Drift):
                 transfer_matrices.append(get_transfer_matrix_drift(elem.length))
 
         total_transfer_matrix = jnp.eye(4)
         for tm in reversed(transfer_matrices):
             total_transfer_matrix = tm @ total_transfer_matrix
-        betx_end = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
+        values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
 
-        return betx_end
+        return values
 
-    return jax.jacfwd(get_betx)(jnp.array([elem.k1 for elem in line.elements if isinstance(elem, xt.Quadrupole)]))
+    return jax.jacfwd(get_values)(jnp.array([elem.k1 for elem in line.elements if isinstance(elem, xt.Quadrupole)]))
 
 
 import sympy as sp
@@ -213,7 +208,7 @@ print(tabulate([
 print("-----------------------------------------------------------")
 print("Finite difference gradient betx: ", grads_fd['betx'])
 
-print(f"Automatic betx gradient: {compute_betx_derivative(line, tw0)['betx']}")
+print(f"Automatic betx gradient: {compute_param_derivatives(line, tw0)['betx']}")
 
 deriv_sympy, symbols = compute_beta_derivative_sym(line, tw0)
 sympy_grad = []

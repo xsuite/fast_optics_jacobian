@@ -8,20 +8,29 @@ env = xt.Environment()
 env.particle_ref = xt.Particles(p0c=7e12)
 
 env['kq'] = 0.1
+env['bphi'] = 0.01
 
 env.new('qf', 'Quadrupole', k1='kq', length=1.0, anchor='start')
 env.new('qd', 'Quadrupole', k1='-kq', length=1.0, anchor='start')
 env.new('drift', 'Drift', length=2.0)
 env.new('drift2', 'Drift', length=1.5)
 env.new('end', 'Marker', at=10., from_='qd@end')
+env.new('bendh', 'Bend', angle='bphi', k0_from_h=True, length=1.0),
+env.new('bendv', 'Bend', angle='bphi', rot_s_rad=np.pi/2, k0_from_h=True, length=1.0),
 
 line = env.new_line(components=[
     env.place('qf', anchor='start', at=0.),
     env.place('drift', at=1., from_='qf@end'),
+    # env.place('bendh', anchor='start', at=5., from_='drift@end'),
+    # env.place('bendv', anchor='start', at=18., from_='bendh@end'),
     env.place('qd', anchor='start', at=10., from_='qf@end'),
     env.place('drift2', anchor='start', at=11., from_='qd@end'),
     env.place('end', at=10., from_='drift@end'),
 ])
+
+# Bends -> bend
+# Quadrupole -> Quad
+# Drift, Sextupole, Octupole -> Drift
 
 opt = line.match(
     method='4d',
@@ -88,6 +97,23 @@ def get_transfer_matrix_drift(l):
     ])
     return f_matrix
 
+def get_transfer_matrix_bend(k1, l, h):
+    kx = jnp.sqrt(k1.astype(complex))
+    ky = jnp.sqrt(-k1.astype(complex))
+    sx = jnp.sin(kx * l) / kx
+    cx = jnp.cos(kx * l)
+    sy = jnp.sin(ky * l) / ky
+    cy = jnp.cos(ky * l)
+
+    f_matrix = jnp.array([
+        [cx, sx, 0, 0],
+        [-k1 * sx, cx, 0, 0],
+        [0, 0, cy, sy],
+        [0, 0, k1 * sy, cy]
+    ])
+
+    return f_matrix.real
+
 def get_values_from_transfer_matrix(transfer_matrix, tw0):
     betx = 1/tw0.betx[0] * ((transfer_matrix[0, 0] * tw0.betx[0] - transfer_matrix[0, 1] * tw0.alfx[0])**2 + transfer_matrix[0, 1]**2)
     bety = 1/tw0.bety[0] * ((transfer_matrix[2, 2] * tw0.bety[0] - transfer_matrix[2, 3] * tw0.alfy[0])**2 + transfer_matrix[2, 3]**2)
@@ -97,6 +123,10 @@ def get_values_from_transfer_matrix(transfer_matrix, tw0):
                              (transfer_matrix[3, 2] * tw0.bety[0] - transfer_matrix[3, 3] * tw0.alfy[0]) + transfer_matrix[2, 3] * transfer_matrix[3, 3])
     mux = tw0.mux[0] + jnp.arctan2(transfer_matrix[0, 1], transfer_matrix[0, 0] * tw0.betx[0] - transfer_matrix[0, 1] * tw0.alfx[0]) / (2 * jnp.pi)
     muy = tw0.muy[0] + jnp.arctan2(transfer_matrix[2, 3], transfer_matrix[2, 2] * tw0.bety[0] - transfer_matrix[2, 3] * tw0.alfy[0]) / (2 * jnp.pi)
+    dx = transfer_matrix[0,0] * tw0.dx[0] + transfer_matrix[0,1] * tw0.dpx[0]
+    dy = transfer_matrix[2,2] * tw0.dy[0] + transfer_matrix[2,3] * tw0.dpy[0]
+    dpx = transfer_matrix[1,0] * tw0.dx[0] + transfer_matrix[1,1] * tw0.dpx[0]
+    dpy = transfer_matrix[3,2] * tw0.dy[0] + transfer_matrix[3,3] * tw0.dpy[0]
 
     param_dict = {
         'betx': betx,
@@ -105,6 +135,10 @@ def get_values_from_transfer_matrix(transfer_matrix, tw0):
         'alfy': alfy,
         'mux': mux,
         'muy': muy,
+        'dx': dx,
+        'dy': dy,
+        'dpx': dpx,
+        'dpy': dpy,
     }
     return param_dict
 
@@ -121,7 +155,6 @@ def derive_values_by_backtrack(line, tw0):
     total_transfer_matrix = np.eye(4)
     for tm in reversed(transfer_matrices):
         total_transfer_matrix = total_transfer_matrix @ tm
-    print(total_transfer_matrix)
     values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
 
     return values
@@ -161,6 +194,10 @@ def get_values_from_transfer_matrix_sp(transfer_matrix, tw0):
                              (transfer_matrix[3, 2] * tw0.bety[0] - transfer_matrix[3, 3] * tw0.alfy[0]) + transfer_matrix[2, 3] * transfer_matrix[3, 3])
     mux = tw0.mux[0] + sp.atan(transfer_matrix[0, 1] / (transfer_matrix[0, 0] * tw0.betx[0] - transfer_matrix[0, 1] * tw0.alfx[0])) / (2 * sp.pi)
     muy = tw0.muy[0] + sp.atan(transfer_matrix[2, 3] / (transfer_matrix[2, 2] * tw0.bety[0] - transfer_matrix[2, 3] * tw0.alfy[0])) / (2 * sp.pi)
+    dx = transfer_matrix[0,0] * tw0.dx[0] + transfer_matrix[0,1] * tw0.dpx[0]
+    dy = transfer_matrix[2,2] * tw0.dy[0] + transfer_matrix[2,3] * tw0.dpy[0]
+    dpx = transfer_matrix[1,0] * tw0.dx[0] + transfer_matrix[1,1] * tw0.dpx[0]
+    dpy = transfer_matrix[3,2] * tw0.dy[0] + transfer_matrix[3,3] * tw0.dpy[0]
 
     param_dict = {
         'betx': betx,
@@ -169,6 +206,10 @@ def get_values_from_transfer_matrix_sp(transfer_matrix, tw0):
         'alfy': alfy,
         'mux': mux,
         'muy': muy,
+        'dx': dx,
+        'dy': dy,
+        'dpx': dpx,
+        'dpy': dpy,
     }
     return param_dict
 
@@ -232,6 +273,10 @@ print(tabulate([
     ['alfy', tw0.alfy[-1], backtracked_values['alfy']],
     ['mux', tw0.mux[-1], backtracked_values['mux']],
     ['muy', tw0.muy[-1], backtracked_values['muy']],
+    ['dx', tw0.dx[-1], backtracked_values['dx']],
+    ['dy', tw0.dy[-1], backtracked_values['dy']],
+    ['dpx', tw0.dpx[-1], backtracked_values['dpx']],
+    ['dpy', tw0.dpy[-1], backtracked_values['dpy']],
 ], tablefmt="fancy_grid", headers=["Parameter", "Twiss", "Backtracked"]))
 
 print("-----------------------------------------------------------")

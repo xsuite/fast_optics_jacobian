@@ -21,8 +21,8 @@ env.new('bendv', 'Bend', angle='bphi', rot_s_rad=np.pi/2, k0_from_h=True, length
 line = env.new_line(components=[
     env.place('qf', anchor='start', at=0.),
     env.place('drift', at=1., from_='qf@end'),
-    # env.place('bendh', anchor='start', at=5., from_='drift@end'),
-    # env.place('bendv', anchor='start', at=18., from_='bendh@end'),
+    env.place('bendh', anchor='start', at=5., from_='drift@end'),
+    env.place('bendv', anchor='start', at=18., from_='bendh@end'),
     env.place('qd', anchor='start', at=10., from_='qf@end'),
     env.place('drift2', anchor='start', at=11., from_='qd@end'),
     env.place('end', at=10., from_='drift@end'),
@@ -71,7 +71,7 @@ tw0 = line.twiss4d(start=xt.START, end=xt.END, betx=0.15, bety=0.15)
 # Reorder list of dictionaries to have Dictionary of lists
 grads_fd = {key: [d[key] for d in grads_fd] for key in grads_fd[0].keys()}
 
-def get_transfer_matrix_quad(k1, l):
+def get_transfer_matrix_quad(k1, l, beta0, gamma0):
     kx = jnp.sqrt(k1.astype(complex))
     ky = jnp.sqrt(-k1.astype(complex))
     sx = jnp.sin(kx * l) / kx
@@ -80,36 +80,44 @@ def get_transfer_matrix_quad(k1, l):
     cy = jnp.cos(ky * l)
 
     f_matrix = jnp.array([
-        [cx, sx, 0, 0],
-        [-k1 * sx, cx, 0, 0],
-        [0, 0, cy, sy],
-        [0, 0, k1 * sy, cy]
+        [cx, sx, 0, 0, 0, 0],
+        [-k1 * sx, cx, 0, 0, 0, 0],
+        [0, 0, cy, sy, 0, 0],
+        [0, 0, k1 * sy, cy, 0, 0],
+        [0, 0, 0, 0, 1, l/(beta0**2 * gamma0**2)],
+        [0, 0, 0, 0, 0, 1]
     ])
 
     return f_matrix.real
 
-def get_transfer_matrix_drift(l):
+def get_transfer_matrix_drift(l, beta0, gamma0):
     f_matrix = jnp.array([
-        [1, l, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 1, l],
-        [0, 0, 0, 1]
+        [1, l, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0],
+        [0, 0, 1, l, 0, 0],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 1, l/(beta0**2 * gamma0**2)],
+        [0, 0, 0, 0, 0, 1]
     ])
     return f_matrix
 
-def get_transfer_matrix_bend(k1, l, h):
-    kx = jnp.sqrt(k1.astype(complex))
-    ky = jnp.sqrt(-k1.astype(complex))
+def get_transfer_matrix_bend(k0, k1, l, h, beta0, gamma0):
+    kx = jnp.sqrt((h**2 + k1).astype(complex))
+    ky = jnp.sqrt((-h**2).astype(complex))
     sx = jnp.sin(kx * l) / kx
     cx = jnp.cos(kx * l)
     sy = jnp.sin(ky * l) / ky
     cy = jnp.cos(ky * l)
+    dx = h * ((1 - cx) / kx**2)
+    j1 = (l - sx) / kx**2
 
     f_matrix = jnp.array([
-        [cx, sx, 0, 0],
-        [-k1 * sx, cx, 0, 0],
-        [0, 0, cy, sy],
-        [0, 0, k1 * sy, cy]
+        [cx, sx, 0, 0, 0, h/beta0 * dx],
+        [-kx**2 * sx, cx, 0, 0, 0, h/beta0 * sx],
+        [0, 0, cy, sy, 0, 0],
+        [0, 0, -ky**2 * sy, cy, 0, 0],
+        [-h/beta0 * sx, -h/beta0 * dx, 0, 0, 1, l/(beta0**2 * gamma0**2) - h**2/beta0**2 * j1],
+        [0, 0, 0, 0, 0, 1]
     ])
 
     return f_matrix.real
@@ -145,17 +153,24 @@ def get_values_from_transfer_matrix(transfer_matrix, tw0):
 def derive_values_by_backtrack(line, tw0):
     # Get the transfer matrix for each element
     transfer_matrices = []
+    j = 0
     for elem in line.elements:
         if isinstance(elem, xt.Quadrupole):
-            transfer_matrices.append(get_transfer_matrix_quad(elem.k1, elem.length))
+            transfer_matrices.append(get_transfer_matrix_quad(elem.k1, elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
+        elif isinstance(elem, xt.Bend):
+            transfer_matrices.append(get_transfer_matrix_bend(elem.k0, elem.k1, elem.length, elem.h, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
         elif isinstance(elem, xt.Drift):
-            transfer_matrices.append(get_transfer_matrix_drift(elem.length))
-
+            transfer_matrices.append(get_transfer_matrix_drift(elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
+        j += 1
     # Calculate the total transfer matrix
-    total_transfer_matrix = np.eye(4)
+    total_transfer_matrix = np.eye(6)
     for tm in reversed(transfer_matrices):
         total_transfer_matrix = total_transfer_matrix @ tm
     values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
+    global totmat
+    global transmat
+    transmat = [t.round(3) for t in transfer_matrices]
+    totmat = total_transfer_matrix
 
     return values
 
@@ -166,15 +181,19 @@ def compute_param_derivatives(line, tw0):
         assert len(k1_arr) == len([elem for elem in line.elements if isinstance(elem, xt.Quadrupole)])
 
         i = 0
+        j = 0
 
         for elem in line.elements:
             if isinstance(elem, xt.Quadrupole):
-                transfer_matrices.append(get_transfer_matrix_quad(k1_arr[i], elem.length))
+                transfer_matrices.append(get_transfer_matrix_quad(k1_arr[i], elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
                 i += 1
+            elif isinstance(elem, xt.Bend):
+                transfer_matrices.append(get_transfer_matrix_bend(elem.k0, elem.k1, elem.length, elem.h, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
             elif isinstance(elem, xt.Drift):
-                transfer_matrices.append(get_transfer_matrix_drift(elem.length))
+                transfer_matrices.append(get_transfer_matrix_drift(elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
+            j += 1
 
-        total_transfer_matrix = jnp.eye(4)
+        total_transfer_matrix = jnp.eye(6)
         for tm in reversed(transfer_matrices):
             total_transfer_matrix = total_transfer_matrix @ tm
         values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)

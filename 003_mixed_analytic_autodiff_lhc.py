@@ -22,6 +22,8 @@ line.cycle('ip7', inplace=True)
 # Initial twiss
 tw0 = line.twiss()
 
+tw_copy = tw0
+
 # Inspect IPS
 tw0.rows['ip.*'].cols['betx bety mux muy x y']
 
@@ -69,11 +71,17 @@ opt.target_status()
 # Quadrupole -> Quad
 # Drift, Sextupole, Octupole -> Drift
 
-opt.solve()
+#opt.solve()
 
-tw0 = line.twiss4d(start=xt.START, end=xt.END, betx=0.15, bety=0.15)
+start_point = 'ip7'
+end_point = tw_copy.rows[105].name[0]
 
-quadrupoles = [elem for elem in line.elements if isinstance(elem, xt.Quadrupole)]
+#jax.config.update("jax_enable_x64", True)
+
+tw0 = line.twiss4d(start=start_point, end=end_point, betx=0.15, bety=0.15)
+trunc_elements = np.array(line.elements)[np.logical_and(line.get_s_position() >= np.float64(line.get_s_position(start_point)), line.get_s_position() <= np.float64(line.get_s_position(end_point)))]
+
+quadrupoles = [elem for elem in trunc_elements if isinstance(elem, xt.Quadrupole)]
 # eps = 1e-6
 # grads_fd = []
 # for quad in quadrupoles:
@@ -139,7 +147,7 @@ def get_transfer_matrix_drift(l, beta0, gamma0):
 
 def get_transfer_matrix_bend(k0, k1, l, h, beta0, gamma0):
     kx = jnp.sqrt((h * k0 + k1).astype(complex))
-    ky = jnp.sqrt((-k1).astype(complex)) # for dipoles usually 0
+    ky = jnp.sqrt(-k1.astype(complex)) # for dipoles usually 0
     sx = jnp.sin(kx * l) / kx
     cx = jnp.cos(kx * l)
     sy = jnp.sin(ky * l) / ky
@@ -189,10 +197,10 @@ def get_values_from_transfer_matrix(transfer_matrix, tw0):
     }
     return param_dict
 
-def derive_values_by_backtrack(line, tw0):
+def derive_values_by_backtrack(elements, tw0):
     # Get the transfer matrix for each element
     transfer_matrices = []
-    for elem in line.elements:
+    for elem in elements:
         if isinstance(elem, xt.Quadrupole):
             transfer_matrix = get_transfer_matrix_quad(elem.k1, elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0])
             if np.any(np.isnan(transfer_matrix)):
@@ -207,6 +215,9 @@ def derive_values_by_backtrack(line, tw0):
                 print(f"Element: {elem}")
                 quit()
             transfer_matrices.append(transfer_matrix)
+        elif isinstance(elem, xt.Multipole):
+            # ignore
+            pass
         elif isinstance(elem, xt.Drift) or hasattr(elem, 'length'):
             transfer_matrix = get_transfer_matrix_drift(elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0])
             if np.any(np.isnan(transfer_matrix)):
@@ -222,13 +233,13 @@ def derive_values_by_backtrack(line, tw0):
         total_transfer_matrix = total_transfer_matrix @ tm
     values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
 
-    return values
+    return values, total_transfer_matrix
 
-def compute_param_derivatives(line, tw0):
+def compute_param_derivatives(elements, tw0):
     def get_values(k1_arr):
         transfer_matrices = []
         # assert that you have the same number of quadrupoles as k1_arr
-        assert len(k1_arr) == len([elem for elem in line.elements if isinstance(elem, xt.Quadrupole)])
+        assert len(k1_arr) == len([elem for elem in elements if isinstance(elem, xt.Quadrupole)])
 
         i = 0
         for elem in line.elements:
@@ -246,13 +257,13 @@ def compute_param_derivatives(line, tw0):
         values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
         return values
 
-    return jax.jacfwd(get_values)(jnp.array([elem.k1 for elem in line.elements if isinstance(elem, xt.Quadrupole)]))
+    return jax.jacfwd(get_values)(jnp.array([elem.k1 for elem in elements if isinstance(elem, xt.Quadrupole)]))
 
 
 print("-----------------------------------------------------------")
 print(f"Compare Twiss parameters and Backtracked parameters")
 
-backtracked_values = derive_values_by_backtrack(line, tw0)
+backtracked_values, transfer_matrix = derive_values_by_backtrack(trunc_elements, tw0)
 
 print(tabulate([
     ['betx', tw0.betx[-1], backtracked_values['betx']],
@@ -268,9 +279,10 @@ print(tabulate([
 ], tablefmt="fancy_grid", headers=["Parameter", "Twiss", "Backtracked"]))
 
 print("-----------------------------------------------------------")
+
 #print("Finite difference gradient betx: ", grads_fd['alfy'])
 
-print(f"Automatic betx gradient: {compute_param_derivatives(line, tw0)['alfy']}")
+#print(f"Automatic gradient: {compute_param_derivatives(trunc_elements, tw0)['betx']}")
 
 # deriv_sympy, symbols = compute_beta_derivative_sym(line, tw0)
 # sympy_grad = []

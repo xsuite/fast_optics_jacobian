@@ -233,6 +233,18 @@ def derive_values_by_backtrack(elements, tw0):
         total_transfer_matrix = total_transfer_matrix @ tm
     values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
 
+    # matrix_copy = transfer_matrices.copy()
+    # def balanced_matrix_prod(mats):
+    #     n = len(mats)
+    #     if n == 1:
+    #         return mats[0]
+    #     mid = n // 2
+    #     return balanced_matrix_prod(mats[mid:]) @ balanced_matrix_prod(mats[:mid])
+
+    # second_matrix = balanced_matrix_prod(matrix_copy)
+
+    #values = get_values_from_transfer_matrix(second_matrix, tw0)
+
     return values, total_transfer_matrix
 
 def compute_param_derivatives(elements, tw0):
@@ -289,4 +301,16 @@ print("-----------------------------------------------------------")
 # # Evaluate sympy expressions and print
 # for i, elem, symbol in zip(range(len(quadrupoles)), quadrupoles, symbols):
 #     sympy_grad.append(deriv_sympy[i].evalf(subs={symbol: quadrupole.k1 for symbol, quadrupole in zip(symbols, quadrupoles)}))
-# print(f"Sympy gradient: {sympy_grad}")
+# print(f"Sympy gradient: {sympy_grad}")for elem, tab in zip(trunc_elements, tw0.rows):
+
+def print_elements_diff(trunc_elements, tw0):
+    tmp_sum = 0
+    for i, elem, tab in zip(range(len(trunc_elements)), trunc_elements, tw0.rows):
+        flag = hasattr(elem, "length")
+        msg = f"Element of type {type(elem).__name__} at {round(tab.s, 4)}"
+        if flag:
+            tmp_sum += elem.length
+            msg += f" with length {elem.length}, reaching {round(tmp_sum, 4)}."
+            if elem != trunc_elements[-1]:
+                msg += f" Difference: {(tmp_sum - tw0.rows[i+1].s).round(4)[0]}"
+        print(msg)

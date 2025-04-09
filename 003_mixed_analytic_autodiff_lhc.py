@@ -74,7 +74,7 @@ opt.target_status()
 #opt.solve()
 
 start_point = 'ip1'
-end_point = tw_copy.rows[37].name[0]
+end_point = tw_copy.rows[7].name[0]
 
 #jax.config.update("jax_enable_x64", True)
 
@@ -118,6 +118,7 @@ def get_transfer_matrix_quad(k1, l, beta0, gamma0):
     sy = jnp.sin(ky * l) / ky # limit of sin(ky * l) / ky when ky -> 0
     cy = jnp.cos(ky * l)
     if k1 == 0:
+        return get_transfer_matrix_drift(l, beta0, gamma0)
         sx = 1.0
         cx = 1.0
         sy = 1.0
@@ -125,9 +126,9 @@ def get_transfer_matrix_quad(k1, l, beta0, gamma0):
 
     f_matrix = jnp.array([
         [cx, sx, 0, 0, 0, 0],
-        [-k1 * sx, cx, 0, 0, 0, 0],
+        [-kx**2 * sx, cx, 0, 0, 0, 0],
         [0, 0, cy, sy, 0, 0],
-        [0, 0, k1 * sy, cy, 0, 0],
+        [0, 0, -ky**2 * sy, cy, 0, 0],
         [0, 0, 0, 0, 1, l/(beta0**2 * gamma0**2)],
         [0, 0, 0, 0, 0, 1]
     ])
@@ -322,23 +323,27 @@ def print_elements_diff(trunc_elements, tw0):
 def plot_betx_twiss_and_bt(transfer_matrices, tw0):
     import matplotlib.pyplot as plt
 
-    bt_betx = []
+    bt_bety = []
     walking_mat = np.eye(6)
     for i in transfer_matrices:
         walking_mat = walking_mat @ i
-        bt_betx.append(get_values_from_transfer_matrix(walking_mat, tw0)['betx'])
-    bt_betx = np.array(bt_betx)
+        bt_bety.append(get_values_from_transfer_matrix(walking_mat, tw0)['bety'])
+    bt_bety = np.array(bt_bety)
 
-    print(bt_betx)
-    print(tw0.betx)
-
-    plt.plot(tw0.s, tw0.betx, label='Twiss')
-    plt.plot(tw0.s, bt_betx[:len(tw0.betx)], label='Backtracked', linestyle='--')
+    plt.plot(tw0.s, tw0.bety, label='Twiss')
+    plt.plot(tw0.s, bt_bety, label='Backtracked', linestyle='--')
 
     plt.xlabel('s [m]')
     plt.ylabel('Beta function [m]')
     plt.title('Beta function along the lattice')
     plt.legend()
+    plt.grid()
+    plt.show()
+
+    plt.figure()
+
+    plt.plot(tw0.s, tw0.bety - bt_bety)
+
     plt.grid()
     plt.show()
 

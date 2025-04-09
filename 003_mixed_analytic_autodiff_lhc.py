@@ -74,7 +74,7 @@ opt.target_status()
 #opt.solve()
 
 start_point = 'ip1'
-limit = 198
+limit = 1000
 end_point = tw_copy.rows[limit].name[0]
 
 for i in range(limit):
@@ -166,7 +166,7 @@ def get_transfer_matrix_bend(k0, k1, l, h, beta0, gamma0):
     j1 = (l - sx) / kx**2
 
     if k1 == 0:
-        sy = 1.0
+        sy = l # sin(ky * l) / ky converges against l for ky -> 0
         cy = 1.0
     if k0 == 0 or h == 0:
         return get_transfer_matrix_drift(l, beta0, gamma0)

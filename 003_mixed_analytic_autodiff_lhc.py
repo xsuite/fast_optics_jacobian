@@ -74,7 +74,16 @@ opt.target_status()
 #opt.solve()
 
 start_point = 'ip1'
-end_point = tw_copy.rows[7].name[0]
+limit = 198
+end_point = tw_copy.rows[limit].name[0]
+
+for i in range(limit):
+    if isinstance(line.elements[i], xt.Bend):
+        pass
+        #line.elements[i].k0 = 0
+        #line.elements[i].h = 0
+        #line.elements[i].edge_entry_active=0
+        #line.elements[i].edge_exit_active=0
 
 #jax.config.update("jax_enable_x64", True)
 
@@ -153,11 +162,14 @@ def get_transfer_matrix_bend(k0, k1, l, h, beta0, gamma0):
     cx = jnp.cos(kx * l)
     sy = jnp.sin(ky * l) / ky
     cy = jnp.cos(ky * l)
+    dx = h * ((1 - cx) / kx**2)
+    j1 = (l - sx) / kx**2
+
     if k1 == 0:
         sy = 1.0
         cy = 1.0
-    dx = h * ((1 - cx) / kx**2)
-    j1 = (l - sx) / kx**2
+    if k0 == 0 or h == 0:
+        return get_transfer_matrix_drift(l, beta0, gamma0)
 
     f_matrix = jnp.array([
         [cx, sx, 0, 0, 0, h/beta0 * dx],
@@ -342,7 +354,7 @@ def plot_betx_twiss_and_bt(transfer_matrices, tw0):
 
     plt.figure()
 
-    plt.plot(tw0.s, tw0.bety - bt_bety)
+    plt.plot(tw0.s, tw0.bety / bt_bety - 1)
 
     plt.grid()
     plt.show()

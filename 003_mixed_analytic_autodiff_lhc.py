@@ -17,7 +17,7 @@ collider.build_trackers()
 
 line = collider.lhcb1
 
-line.cycle('ip7', inplace=True)
+#line.cycle('ip7', inplace=True)
 
 # Initial twiss
 tw0 = line.twiss()
@@ -73,8 +73,8 @@ opt.target_status()
 
 #opt.solve()
 
-start_point = 'ip7'
-end_point = tw_copy.rows[105].name[0]
+start_point = 'ip1'
+end_point = tw_copy.rows[37].name[0]
 
 #jax.config.update("jax_enable_x64", True)
 
@@ -217,13 +217,17 @@ def derive_values_by_backtrack(elements, tw0):
             transfer_matrices.append(transfer_matrix)
         elif isinstance(elem, xt.Multipole):
             # ignore
-            pass
+            transfer_matrix = np.eye(6)
+            transfer_matrices.append(transfer_matrix)
         elif isinstance(elem, xt.Drift) or hasattr(elem, 'length'):
             transfer_matrix = get_transfer_matrix_drift(elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0])
             if np.any(np.isnan(transfer_matrix)):
                 print("Turned to NaN in transfer matrix!!")
                 print(f"Element: {elem}")
                 quit()
+            transfer_matrices.append(transfer_matrix)
+        else:
+            transfer_matrix = np.eye(6)
             transfer_matrices.append(transfer_matrix)
 
     # Calculate the total transfer matrix
@@ -245,7 +249,7 @@ def derive_values_by_backtrack(elements, tw0):
 
     #values = get_values_from_transfer_matrix(second_matrix, tw0)
 
-    return values, total_transfer_matrix
+    return values, total_transfer_matrix, transfer_matrices
 
 def compute_param_derivatives(elements, tw0):
     def get_values(k1_arr):
@@ -275,7 +279,7 @@ def compute_param_derivatives(elements, tw0):
 print("-----------------------------------------------------------")
 print(f"Compare Twiss parameters and Backtracked parameters")
 
-backtracked_values, transfer_matrix = derive_values_by_backtrack(trunc_elements, tw0)
+backtracked_values, transfer_matrix, transfer_matrices = derive_values_by_backtrack(trunc_elements, tw0)
 
 print(tabulate([
     ['betx', tw0.betx[-1], backtracked_values['betx']],
@@ -314,3 +318,28 @@ def print_elements_diff(trunc_elements, tw0):
             if elem != trunc_elements[-1]:
                 msg += f" Difference: {(tmp_sum - tw0.rows[i+1].s).round(4)[0]}"
         print(msg)
+
+def plot_betx_twiss_and_bt(transfer_matrices, tw0):
+    import matplotlib.pyplot as plt
+
+    bt_betx = []
+    walking_mat = np.eye(6)
+    for i in transfer_matrices:
+        walking_mat = walking_mat @ i
+        bt_betx.append(get_values_from_transfer_matrix(walking_mat, tw0)['betx'])
+    bt_betx = np.array(bt_betx)
+
+    print(bt_betx)
+    print(tw0.betx)
+
+    plt.plot(tw0.s, tw0.betx, label='Twiss')
+    plt.plot(tw0.s, bt_betx[:len(tw0.betx)], label='Backtracked', linestyle='--')
+
+    plt.xlabel('s [m]')
+    plt.ylabel('Beta function [m]')
+    plt.title('Beta function along the lattice')
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+plot_betx_twiss_and_bt(transfer_matrices, tw0)

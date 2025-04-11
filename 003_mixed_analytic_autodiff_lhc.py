@@ -74,7 +74,7 @@ opt.target_status()
 #opt.solve()
 
 start_point = 'ip1'
-limit = 14520
+limit = 3000
 end_point = tw_copy.rows[limit].name[0]
 
 for i in range(limit):
@@ -84,7 +84,7 @@ for i in range(limit):
         line.elements[i].edge_entry_active=0
         line.elements[i].edge_exit_active=0
 
-#jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", True)
 
 tw0 = line.twiss4d(start=start_point, end=end_point, betx=0.15, bety=0.15)
 trunc_elements = np.array(line.elements)[np.logical_and(line.get_s_position() >= np.float64(line.get_s_position(start_point)), line.get_s_position() <= np.float64(line.get_s_position(end_point)))]
@@ -186,10 +186,10 @@ def get_values_from_transfer_matrix(transfer_matrix, tw0):
                              (transfer_matrix[3, 2] * tw0.bety[0] - transfer_matrix[3, 3] * tw0.alfy[0]) + transfer_matrix[2, 3] * transfer_matrix[3, 3])
     mux = tw0.mux[0] + jnp.arctan2(transfer_matrix[0, 1], transfer_matrix[0, 0] * tw0.betx[0] - transfer_matrix[0, 1] * tw0.alfx[0]) / (2 * jnp.pi)
     muy = tw0.muy[0] + jnp.arctan2(transfer_matrix[2, 3], transfer_matrix[2, 2] * tw0.bety[0] - transfer_matrix[2, 3] * tw0.alfy[0]) / (2 * jnp.pi)
-    dx = transfer_matrix[0,0] * tw0.dx[0] + transfer_matrix[0,1] * tw0.dpx[0]
-    dy = transfer_matrix[2,2] * tw0.dy[0] + transfer_matrix[2,3] * tw0.dpy[0]
-    dpx = transfer_matrix[1,0] * tw0.dx[0] + transfer_matrix[1,1] * tw0.dpx[0]
-    dpy = transfer_matrix[3,2] * tw0.dy[0] + transfer_matrix[3,3] * tw0.dpy[0]
+    dx = transfer_matrix[0,0] * tw0.dx[0] + transfer_matrix[0,1] * tw0.dpx[0] + transfer_matrix[0, 5]
+    dy = transfer_matrix[2,2] * tw0.dy[0] + transfer_matrix[2,3] * tw0.dpy[0] + transfer_matrix[1, 5]
+    dpx = transfer_matrix[1,0] * tw0.dx[0] + transfer_matrix[1,1] * tw0.dpx[0] + transfer_matrix[2, 5]
+    dpy = transfer_matrix[3,2] * tw0.dy[0] + transfer_matrix[3,3] * tw0.dpy[0] + transfer_matrix[3, 5]
 
     param_dict = {
         'betx': betx,
@@ -204,6 +204,23 @@ def get_values_from_transfer_matrix(transfer_matrix, tw0):
         'dpy': dpy,
     }
     return param_dict
+
+def get_values_new_from_transfer_matrix(r_mat, param_values):
+    # Order: betx, bety, alfx, alfy, mux, muy, dx, dy, dpx, dpy
+    betx = 1/param_values[0] * ((r_mat[0, 0] * param_values[0] - r_mat[0, 1] * param_values[2])**2 + r_mat[0, 1]**2)
+    bety = 1/param_values[1] * ((r_mat[2, 2] * param_values[1] - r_mat[2, 3] * param_values[3])**2 + r_mat[2, 3]**2)
+    alfx = -1/param_values[0] * ((r_mat[0, 0] * param_values[0] - r_mat[0, 1] * param_values[2]) *
+                             (r_mat[1, 0] * param_values[0] - r_mat[1, 1] * param_values[2]) + r_mat[0, 1] * r_mat[1, 1])
+    alfy = -1/param_values[1] * ((r_mat[2, 2] * param_values[1] - r_mat[2, 3] * param_values[3]) *
+                             (r_mat[3, 2] * param_values[1] - r_mat[3, 3] * param_values[3]) + r_mat[2, 3] * r_mat[3, 3])
+    mux = param_values[4] + jnp.arctan2(r_mat[0, 1], r_mat[0, 0] * param_values[0] - r_mat[0, 1] * param_values[2]) / (2 * jnp.pi)
+    muy = param_values[5] + jnp.arctan2(r_mat[2, 3], r_mat[2, 2] * param_values[1] - r_mat[2, 3] * param_values[3]) / (2 * jnp.pi)
+    dx = r_mat[0,0] * param_values[6] + r_mat[0,1] * param_values[8] + r_mat[0, 5]
+    dy = r_mat[2,2] * param_values[7] + r_mat[2,3] * param_values[9] + r_mat[1, 5]
+    dpx = r_mat[1,0] * param_values[6] + r_mat[1,1] * param_values[8] + r_mat[2, 5]
+    dpy = r_mat[3,2] * param_values[7] + r_mat[3,3] * param_values[9] + r_mat[3, 5]
+
+    return jnp.array([betx, bety, alfx, alfy, mux, muy, dx, dy, dpx, dpy])
 
 def derive_values_by_backtrack(elements, tw0):
     # Get the transfer matrix for each element
@@ -239,25 +256,17 @@ def derive_values_by_backtrack(elements, tw0):
             transfer_matrices.append(transfer_matrix)
 
     # Calculate the total transfer matrix
-    total_transfer_matrix = np.eye(6)
+    total_transfer_matrix = jnp.eye(6)
+    parameter_matrix = []
+    parameter_values = jnp.array([tw0.betx[0], tw0.bety[0], tw0.alfx[0], tw0.alfy[0], tw0.mux[0], tw0.muy[0], tw0.dx[0], tw0.dy[0], tw0.dpx[0], tw0.dpy[0]])
 
-    for i, tm in enumerate(reversed(transfer_matrices)):
-        total_transfer_matrix = total_transfer_matrix @ tm
+    for i, tm in enumerate(transfer_matrices):
+        total_transfer_matrix = tm @ total_transfer_matrix
+        parameter_values = get_values_new_from_transfer_matrix(tm, parameter_values)
+        parameter_matrix.append(parameter_values)
     values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
 
-    # matrix_copy = transfer_matrices.copy()
-    # def balanced_matrix_prod(mats):
-    #     n = len(mats)
-    #     if n == 1:
-    #         return mats[0]
-    #     mid = n // 2
-    #     return balanced_matrix_prod(mats[mid:]) @ balanced_matrix_prod(mats[:mid])
-
-    # second_matrix = balanced_matrix_prod(matrix_copy)
-
-    #values = get_values_from_transfer_matrix(second_matrix, tw0)
-
-    return values, total_transfer_matrix, transfer_matrices
+    return values, total_transfer_matrix, transfer_matrices, parameter_values, jnp.array(parameter_matrix)
 
 def compute_param_derivatives(elements, tw0):
     def get_values(k1_arr):
@@ -287,20 +296,20 @@ def compute_param_derivatives(elements, tw0):
 print("-----------------------------------------------------------")
 print(f"Compare Twiss parameters and Backtracked parameters")
 
-backtracked_values, transfer_matrix, transfer_matrices = derive_values_by_backtrack(trunc_elements, tw0)
+backtracked_values, transfer_matrix, transfer_matrices, parameter_values, parameter_matrix = derive_values_by_backtrack(trunc_elements, tw0)
 
 print(tabulate([
-    ['betx', tw0.betx[-1], backtracked_values['betx']],
-    ['bety', tw0.bety[-1], backtracked_values['bety']],
-    ['alfx', tw0.alfx[-1], backtracked_values['alfx']],
-    ['alfy', tw0.alfy[-1], backtracked_values['alfy']],
-    ['mux', tw0.mux[-1], backtracked_values['mux']],
-    ['muy', tw0.muy[-1], backtracked_values['muy']],
-    ['dx', tw0.dx[-1], backtracked_values['dx']],
-    ['dy', tw0.dy[-1], backtracked_values['dy']],
-    ['dpx', tw0.dpx[-1], backtracked_values['dpx']],
-    ['dpy', tw0.dpy[-1], backtracked_values['dpy']],
-], tablefmt="fancy_grid", headers=["Parameter", "Twiss", "Backtracked"]))
+    ['bety', tw0.bety[-1], backtracked_values['bety'], parameter_values[1]],
+    ['betx', tw0.betx[-1], backtracked_values['betx'], parameter_values[0]],
+    ['alfx', tw0.alfx[-1], backtracked_values['alfx'], parameter_values[2]],
+    ['alfy', tw0.alfy[-1], backtracked_values['alfy'], parameter_values[3]],
+    ['mux', tw0.mux[-1], backtracked_values['mux'], parameter_values[4]],
+    ['muy', tw0.muy[-1], backtracked_values['muy'], parameter_values[5]],
+    ['dx', tw0.dx[-1], backtracked_values['dx'], parameter_values[6]],
+    ['dy', tw0.dy[-1], backtracked_values['dy'], parameter_values[7]],
+    ['dpx', tw0.dpx[-1], backtracked_values['dpx'], parameter_values[8]],
+    ['dpy', tw0.dpy[-1], backtracked_values['dpy'], parameter_values[9]],
+], tablefmt="fancy_grid", headers=["Parameter", "Twiss", "Backtracked", "Backtracked Continuous"]))
 
 print("-----------------------------------------------------------")
 
@@ -334,10 +343,10 @@ def plot_betx_twiss_and_bt(transfer_matrices, tw0):
     walking_mat = np.eye(6)
     for i in transfer_matrices:
         walking_mat = i @ walking_mat
-        bt_bety.append(get_values_from_transfer_matrix(walking_mat, tw0)['bety'])
+        bt_bety.append(get_values_from_transfer_matrix(walking_mat, tw0)['mux'])
     bt_bety = np.flip(np.array(bt_bety))
 
-    plt.plot(tw0.s, tw0.bety, label='Twiss')
+    plt.plot(tw0.s, tw0.mux, label='Twiss')
     plt.plot(tw0.s, bt_bety[::-1], label='Backtracked', linestyle='--')
 
     plt.xlabel('s [m]')
@@ -349,7 +358,7 @@ def plot_betx_twiss_and_bt(transfer_matrices, tw0):
 
     plt.figure()
 
-    plt.plot(tw0.s, tw0.bety / bt_bety - 1)
+    plt.plot(tw0.s, tw0.dx / bt_bety - 1)
 
     plt.grid()
     plt.show()

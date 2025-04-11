@@ -74,16 +74,15 @@ opt.target_status()
 #opt.solve()
 
 start_point = 'ip1'
-limit = 1000
+limit = 14520
 end_point = tw_copy.rows[limit].name[0]
 
 for i in range(limit):
     if isinstance(line.elements[i], xt.Bend):
-        pass
         #line.elements[i].k0 = 0
         #line.elements[i].h = 0
-        #line.elements[i].edge_entry_active=0
-        #line.elements[i].edge_exit_active=0
+        line.elements[i].edge_entry_active=0
+        line.elements[i].edge_exit_active=0
 
 #jax.config.update("jax_enable_x64", True)
 
@@ -128,10 +127,6 @@ def get_transfer_matrix_quad(k1, l, beta0, gamma0):
     cy = jnp.cos(ky * l)
     if k1 == 0:
         return get_transfer_matrix_drift(l, beta0, gamma0)
-        sx = 1.0
-        cx = 1.0
-        sy = 1.0
-        cy = 1.0
 
     f_matrix = jnp.array([
         [cx, sx, 0, 0, 0, 0],
@@ -360,3 +355,18 @@ def plot_betx_twiss_and_bt(transfer_matrices, tw0):
     plt.show()
 
 plot_betx_twiss_and_bt(transfer_matrices, tw0)
+
+#index_pos_elem_tuple = [(elem, s) for elem, s in zip(line.elements, line.get_s_position())]
+
+def get_closest_id_for_s(target):
+    return np.abs(np.array(line.get_s_position()) - target).argmin()
+
+def get_norm_diff_mat_for_elements(transfer_matrices, tw0):
+    transfer_matrices = np.array(transfer_matrices)
+    matrix_norm_diffs = np.zeros(len(transfer_matrices - 1))
+    for i, tm in enumerate(transfer_matrices[1:]):
+        matrix_twiss = tw0.get_R_matrix(tw0.name[i], tw0.name[i+1])
+        matrix_norm_diffs[i] = np.linalg.norm(tm - matrix_twiss)
+    return matrix_norm_diffs
+
+mat_diffs = get_norm_diff_mat_for_elements(transfer_matrices, tw0)

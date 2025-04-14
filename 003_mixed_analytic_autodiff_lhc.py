@@ -341,12 +341,14 @@ def plot_betx_twiss_and_bt(transfer_matrices, tw0):
 
     bt_bety = []
     walking_mat = np.eye(6)
+    param_values = jnp.array([tw0.betx[0], tw0.bety[0], tw0.alfx[0], tw0.alfy[0], tw0.mux[0], tw0.muy[0], tw0.dx[0], tw0.dy[0], tw0.dpx[0], tw0.dpy[0]])
     for i in transfer_matrices:
         walking_mat = i @ walking_mat
-        bt_bety.append(get_values_from_transfer_matrix(walking_mat, tw0)['mux'])
+        param_values = get_values_new_from_transfer_matrix(walking_mat, param_values)
+        bt_bety.append(param_values[6])
     bt_bety = np.flip(np.array(bt_bety))
 
-    plt.plot(tw0.s, tw0.mux, label='Twiss')
+    plt.plot(tw0.s, tw0.dx, label='Twiss')
     plt.plot(tw0.s, bt_bety[::-1], label='Backtracked', linestyle='--')
 
     plt.xlabel('s [m]')

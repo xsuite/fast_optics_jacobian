@@ -76,14 +76,16 @@ def get_transfer_matrix_quad(k1, l, beta0, gamma0):
     ky = jnp.sqrt(-k1.astype(complex))
     sx = jnp.sin(kx * l) / kx
     cx = jnp.cos(kx * l)
-    sy = jnp.sin(ky * l) / ky
+    sy = jnp.sin(ky * l) / ky # limit of sin(ky * l) / ky when ky -> 0
     cy = jnp.cos(ky * l)
+    if k1 == 0:
+        return get_transfer_matrix_drift(l, beta0, gamma0)
 
     f_matrix = jnp.array([
         [cx, sx, 0, 0, 0, 0],
-        [-k1 * sx, cx, 0, 0, 0, 0],
+        [-kx**2 * sx, cx, 0, 0, 0, 0],
         [0, 0, cy, sy, 0, 0],
-        [0, 0, k1 * sy, cy, 0, 0],
+        [0, 0, -ky**2 * sy, cy, 0, 0],
         [0, 0, 0, 0, 1, l/(beta0**2 * gamma0**2)],
         [0, 0, 0, 0, 0, 1]
     ])
@@ -103,13 +105,19 @@ def get_transfer_matrix_drift(l, beta0, gamma0):
 
 def get_transfer_matrix_bend(k0, k1, l, h, beta0, gamma0):
     kx = jnp.sqrt((h * k0 + k1).astype(complex))
-    ky = jnp.sqrt((-k1).astype(complex)) # for dipoles usually 0
+    ky = jnp.sqrt(-k1.astype(complex)) # for dipoles usually 0
     sx = jnp.sin(kx * l) / kx
     cx = jnp.cos(kx * l)
-    sy = 1.0 # limit of sin(ky * l) / ky when ky -> 0
-    cy = 1.0 # limit of cos(ky * l) when ky -> 0
-    dx = h * ((1 - cx) / kx**2)
+    sy = jnp.sin(ky * l) / ky
+    cy = jnp.cos(ky * l)
+    dx = (1 - cx) / kx**2
     j1 = (l - sx) / kx**2
+
+    if k1 == 0:
+        sy = l # sin(ky * l) / ky converges against l for ky -> 0
+        cy = 1.0
+    if k0 == 0 or h == 0:
+        return get_transfer_matrix_drift(l, beta0, gamma0)
 
     f_matrix = jnp.array([
         [cx, sx, 0, 0, 0, h/beta0 * dx],
@@ -131,10 +139,10 @@ def get_values_from_transfer_matrix(transfer_matrix, tw0):
                              (transfer_matrix[3, 2] * tw0.bety[0] - transfer_matrix[3, 3] * tw0.alfy[0]) + transfer_matrix[2, 3] * transfer_matrix[3, 3])
     mux = tw0.mux[0] + jnp.arctan2(transfer_matrix[0, 1], transfer_matrix[0, 0] * tw0.betx[0] - transfer_matrix[0, 1] * tw0.alfx[0]) / (2 * jnp.pi)
     muy = tw0.muy[0] + jnp.arctan2(transfer_matrix[2, 3], transfer_matrix[2, 2] * tw0.bety[0] - transfer_matrix[2, 3] * tw0.alfy[0]) / (2 * jnp.pi)
-    dx = transfer_matrix[0,0] * tw0.dx[0] + transfer_matrix[0,1] * tw0.dpx[0]
-    dy = transfer_matrix[2,2] * tw0.dy[0] + transfer_matrix[2,3] * tw0.dpy[0]
-    dpx = transfer_matrix[1,0] * tw0.dx[0] + transfer_matrix[1,1] * tw0.dpx[0]
-    dpy = transfer_matrix[3,2] * tw0.dy[0] + transfer_matrix[3,3] * tw0.dpy[0]
+    dx = transfer_matrix[0,0] * tw0.dx[0] + transfer_matrix[0,1] * tw0.dpx[0] + transfer_matrix[0, 5]
+    dy = transfer_matrix[2,2] * tw0.dy[0] + transfer_matrix[2,3] * tw0.dpy[0] + transfer_matrix[2, 5]
+    dpx = transfer_matrix[1,0] * tw0.dx[0] + transfer_matrix[1,1] * tw0.dpx[0] + transfer_matrix[1, 5]
+    dpy = transfer_matrix[3,2] * tw0.dy[0] + transfer_matrix[3,3] * tw0.dpy[0] + transfer_matrix[3, 5]
 
     param_dict = {
         'betx': betx,
@@ -150,24 +158,68 @@ def get_values_from_transfer_matrix(transfer_matrix, tw0):
     }
     return param_dict
 
-def derive_values_by_backtrack(line, tw0):
+def get_values_new_from_transfer_matrix(r_mat, param_values):
+    # Order: betx, bety, alfx, alfy, mux, muy, dx, dy, dpx, dpy
+    betx = 1/param_values[0] * ((r_mat[0, 0] * param_values[0] - r_mat[0, 1] * param_values[2])**2 + r_mat[0, 1]**2)
+    bety = 1/param_values[1] * ((r_mat[2, 2] * param_values[1] - r_mat[2, 3] * param_values[3])**2 + r_mat[2, 3]**2)
+    alfx = -1/param_values[0] * ((r_mat[0, 0] * param_values[0] - r_mat[0, 1] * param_values[2]) *
+                             (r_mat[1, 0] * param_values[0] - r_mat[1, 1] * param_values[2]) + r_mat[0, 1] * r_mat[1, 1])
+    alfy = -1/param_values[1] * ((r_mat[2, 2] * param_values[1] - r_mat[2, 3] * param_values[3]) *
+                             (r_mat[3, 2] * param_values[1] - r_mat[3, 3] * param_values[3]) + r_mat[2, 3] * r_mat[3, 3])
+    mux = param_values[4] + jnp.arctan2(r_mat[0, 1], r_mat[0, 0] * param_values[0] - r_mat[0, 1] * param_values[2]) / (2 * jnp.pi)
+    muy = param_values[5] + jnp.arctan2(r_mat[2, 3], r_mat[2, 2] * param_values[1] - r_mat[2, 3] * param_values[3]) / (2 * jnp.pi)
+    dx = r_mat[0,0] * param_values[6] + r_mat[0,1] * param_values[8] + r_mat[0, 5]
+    dy = r_mat[2,2] * param_values[7] + r_mat[2,3] * param_values[9] + r_mat[2, 5]
+    dpx = r_mat[1,0] * param_values[6] + r_mat[1,1] * param_values[8] + r_mat[1, 5]
+    dpy = r_mat[3,2] * param_values[7] + r_mat[3,3] * param_values[9] + r_mat[3, 5]
+
+    return jnp.array([betx, bety, alfx, alfy, mux, muy, dx, dy, dpx, dpy])
+
+def derive_values_by_backtrack(elements, tw0):
     # Get the transfer matrix for each element
     transfer_matrices = []
-    for elem in line.elements:
+    for elem in elements:
         if isinstance(elem, xt.Quadrupole):
-            transfer_matrices.append(get_transfer_matrix_quad(elem.k1, elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
-        elif isinstance(elem, xt.Bend):
-            transfer_matrices.append(get_transfer_matrix_bend(elem.k0, elem.k1, elem.length, elem.h, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
-        elif isinstance(elem, xt.Drift):
-            transfer_matrices.append(get_transfer_matrix_drift(elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
+            transfer_matrix = get_transfer_matrix_quad(elem.k1, elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0])
+            if np.any(np.isnan(transfer_matrix)):
+                print("Turned to NaN in transfer matrix!!")
+                print(f"Element: {elem}")
+                quit()
+            transfer_matrices.append(transfer_matrix)
+        elif isinstance(elem, xt.Bend) or isinstance(elem, xt.RBend):
+            transfer_matrix = get_transfer_matrix_bend(elem.k0, elem.k1, elem.length, elem.h, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0])
+            if np.any(np.isnan(transfer_matrix)):
+                print("Turned to NaN in transfer matrix!!")
+                print(f"Element: {elem}")
+                quit()
+            transfer_matrices.append(transfer_matrix)
+        elif isinstance(elem, xt.Multipole):
+            # ignore
+            transfer_matrix = np.eye(6)
+            transfer_matrices.append(transfer_matrix)
+        elif isinstance(elem, xt.Drift) or hasattr(elem, 'length'):
+            transfer_matrix = get_transfer_matrix_drift(elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0])
+            if np.any(np.isnan(transfer_matrix)):
+                print("Turned to NaN in transfer matrix!!")
+                print(f"Element: {elem}")
+                quit()
+            transfer_matrices.append(transfer_matrix)
+        else:
+            transfer_matrix = np.eye(6)
+            transfer_matrices.append(transfer_matrix)
 
     # Calculate the total transfer matrix
-    total_transfer_matrix = np.eye(6)
-    for tm in reversed(transfer_matrices):
-        total_transfer_matrix = total_transfer_matrix @ tm
+    total_transfer_matrix = jnp.eye(6)
+    parameter_matrix = []
+    parameter_values = jnp.array([tw0.betx[0], tw0.bety[0], tw0.alfx[0], tw0.alfy[0], tw0.mux[0], tw0.muy[0], tw0.dx[0], tw0.dy[0], tw0.dpx[0], tw0.dpy[0]])
+
+    for i, tm in enumerate(transfer_matrices):
+        total_transfer_matrix = tm @ total_transfer_matrix
+        parameter_values = get_values_new_from_transfer_matrix(tm, parameter_values)
+        parameter_matrix.append(parameter_values)
     values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
 
-    return values
+    return values, total_transfer_matrix, transfer_matrices, parameter_values, jnp.array(parameter_matrix)
 
 def compute_param_derivatives(line, tw0):
     def get_values(k1_arr):
@@ -185,11 +237,13 @@ def compute_param_derivatives(line, tw0):
             elif isinstance(elem, xt.Drift):
                 transfer_matrices.append(get_transfer_matrix_drift(elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
 
+        parameter_values = jnp.array([tw0.betx[0], tw0.bety[0], tw0.alfx[0], tw0.alfy[0], tw0.mux[0], tw0.muy[0], tw0.dx[0], tw0.dy[0], tw0.dpx[0], tw0.dpy[0]])
+
         total_transfer_matrix = jnp.eye(6)
-        for tm in reversed(transfer_matrices):
-            total_transfer_matrix = total_transfer_matrix @ tm
-        values = get_values_from_transfer_matrix(total_transfer_matrix, tw0)
-        return values
+        for i, tm in enumerate(transfer_matrices):
+            total_transfer_matrix = tm @ total_transfer_matrix
+            parameter_values = get_values_new_from_transfer_matrix(tm, parameter_values)
+        return parameter_values
 
     return jax.jacfwd(get_values)(jnp.array([elem.k1 for elem in line.elements if isinstance(elem, xt.Quadrupole)]))
 
@@ -302,7 +356,7 @@ def compute_beta_derivative_sym(line, tw0):
 print("-----------------------------------------------------------")
 print(f"Compare Twiss parameters and Backtracked parameters")
 
-backtracked_values = derive_values_by_backtrack(line, tw0)
+backtracked_values, transfer_matrix, transfer_matrices, parameter_values, parameter_matrix = derive_values_by_backtrack(line, tw0)
 
 print(tabulate([
     ['betx', tw0.betx[-1], backtracked_values['betx']],
@@ -320,7 +374,7 @@ print(tabulate([
 print("-----------------------------------------------------------")
 print("Finite difference gradient betx: ", grads_fd['alfy'])
 
-print(f"Automatic betx gradient: {compute_param_derivatives(line, tw0)['alfy']}")
+print(f"Automatic betx gradient: {compute_param_derivatives(line, tw0)}")
 
 deriv_sympy, symbols = compute_beta_derivative_sym(line, tw0)
 sympy_grad = []
@@ -328,3 +382,41 @@ sympy_grad = []
 for i, elem, symbol in zip(range(len(quadrupoles)), quadrupoles, symbols):
     sympy_grad.append(deriv_sympy[i].evalf(subs={symbol: quadrupole.k1 for symbol, quadrupole in zip(symbols, quadrupoles)}))
 print(f"Sympy gradient: {sympy_grad}")
+
+def plot_betx_twiss_and_bt(transfer_matrices, tw0):
+    import matplotlib.pyplot as plt
+
+    bt_bety = []
+    walking_mat = np.eye(6)
+    param_values = jnp.array([tw0.betx[0], tw0.bety[0], tw0.alfx[0], tw0.alfy[0], tw0.mux[0], tw0.muy[0], tw0.dx[0], tw0.dy[0], tw0.dpx[0], tw0.dpy[0]])
+    idx = 6
+    bt_bety.append(param_values[idx])
+    for i in transfer_matrices:
+        walking_mat = i @ walking_mat
+        param_values = get_values_new_from_transfer_matrix(i, param_values)
+        bt_bety.append(param_values[idx])
+    bt_bety = np.array(bt_bety)
+
+    print(bt_bety)
+
+    plt.plot(tw0.s, tw0.dx, label='Twiss')
+    plt.plot(tw0.s, bt_bety, label='Backtracked', linestyle='--')
+
+    plt.xlabel('s [m]')
+    plt.ylabel('Beta function [m]')
+    plt.title('Beta function along the lattice')
+    plt.legend()
+    plt.grid()
+    plt.show()
+    return bt_bety
+
+
+def get_norm_diff_mat_for_elements(transfer_matrices, tw0):
+    transfer_matrices = np.array(transfer_matrices)
+    matrix_norm_diffs = np.zeros(len(transfer_matrices - 1))
+    index_05_diff = np.zeros(len(transfer_matrices - 1))
+    for i, tm in enumerate(transfer_matrices):
+        matrix_twiss = tw0.get_R_matrix(tw0.name[i], tw0.name[i+1])
+        matrix_norm_diffs[i] = np.linalg.norm(tm - matrix_twiss)
+        index_05_diff[i] = tm[0, 5] - matrix_twiss[0, 5]
+    return matrix_norm_diffs, index_05_diff

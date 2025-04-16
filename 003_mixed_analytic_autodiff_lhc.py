@@ -74,7 +74,7 @@ opt.target_status()
 #opt.solve()
 
 start_point = 'ip1'
-limit = 5000
+limit = 4000
 end_point = tw_copy.rows[limit].name[0]
 
 for i in range(limit):
@@ -83,7 +83,6 @@ for i in range(limit):
         line.elements[i].edge_exit_active=0
 
 #jax.config.update("jax_enable_x64", True)
-#jax.config.update("jax_debug_nans", True)
 
 tw0 = line.twiss4d(start=start_point, end=end_point, betx=0.15, bety=0.15)
 trunc_elements = np.array(line.elements)[np.logical_and(line.get_s_position() >= np.float64(line.get_s_position(start_point)), line.get_s_position() <= np.float64(line.get_s_position(end_point)))]
@@ -266,9 +265,10 @@ def compute_param_derivatives(elements, elem_to_deriv, tw0):
         i = 0
         for elem in elements:
             if elem in elem_to_deriv:
+                assert isinstance(elem, xt.Quadrupole)
                 transfer_matrices.append(get_transfer_matrix_quad(k1_arr[i], elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
                 i += 1
-            if isinstance(elem, xt.Quadrupole) and elem.k1 != 0:
+            elif isinstance(elem, xt.Quadrupole) and elem.k1 != 0:
                 transfer_matrices.append(get_transfer_matrix_quad(elem.k1, elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
             elif isinstance(elem, xt.Bend):
                 transfer_matrices.append(get_transfer_matrix_bend(elem.k0, elem.k1, elem.length, elem.h, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
@@ -368,3 +368,70 @@ def get_norm_diff_mat_for_elements(transfer_matrices, tw0):
     return matrix_norm_diffs
 
 mat_diffs = get_norm_diff_mat_for_elements(transfer_matrices, tw0)
+
+# import jacobian_mod as jmod
+
+# all_quad_sources, target_places, dkq_dvv = jmod.get_dependency_derivatives(line, opt)
+
+
+# start = 's.ds.l8.b1'
+# end = 'ip1'
+# opt_tw = line.twiss(start=start, end=end, init=tw_copy, init_at=xt.START)
+# tw_names = opt_tw.name[:-1]
+# trunc_elements = np.array([line.element_dict[name] for name in tw_names])
+
+# # truncate line to analyze for start - end
+# twiss_derivs = {}
+# for place in target_places: # ip1, ip8
+#     # Calc derivative for all quadrupoles for target place
+#     # Source point = qqnn, Observation point = target
+#     twiss_derivs[place] = {}
+#     trunc_elements = np.array([line.element_dict[name] for name in opt_tw.rows[:place].name])
+#     nonzero_qq = []
+#     nonzero_qqn = []
+#     for qqnn in all_quad_sources:
+#         if opt_tw['s', place] < opt_tw['s', qqnn]:
+#             twiss_derivs[place][qqnn] = np.zeros(10)
+#         else:
+#             nonzero_qqn.append(qqnn)
+#             nonzero_qq.append(line.element_dict[qqnn])
+#             # add to list to be calculated
+#     nonzero_deriv = compute_param_derivatives(trunc_elements, nonzero_qq, opt_tw)
+#     for qqn, deriv in zip(nonzero_qqn, nonzero_deriv.T):
+#         twiss_derivs[place][qqn] = deriv
+
+# # Convert list to dict
+# def convert_list_to_dict(lst):
+#     return {'betx': lst[0], 'bety': lst[1], 'alfx': lst[2], 'alfy': lst[3],
+#             'mux': lst[4], 'muy': lst[5], 'dx': lst[6], 'dy': lst[7], 'dpx': lst[8], 'dpy': lst[9]}
+
+# for i in twiss_derivs.keys():
+#     for j in twiss_derivs[i].keys():
+#         twiss_derivs[i][j] = convert_list_to_dict(twiss_derivs[i][j])
+
+# jac_estim = np.zeros((len(opt.targets), len(opt.vary)))
+# for itt, tt in enumerate(opt.targets):
+
+#     assert isinstance(tt.tar, tuple)
+
+#     tar_quantity = tt.tar[0]
+#     tar_place = tt.tar[1]
+#     tar_weight = tt.weight
+
+#     for ivv in range(len(opt.vary)):
+
+#         vv = opt.vary[ivv].name
+
+#         quad_names = dkq_dvv[vv].keys()
+
+#         dtar_dvv = 0
+#         for qqnn in quad_names:
+#             dtar_dvv += twiss_derivs[tar_place][qqnn][tar_quantity] * float(dkq_dvv[vv][qqnn])
+
+#         dtar_dvv *= tar_weight
+
+#         jac_estim[itt, ivv] = dtar_dvv
+
+
+# err = opt.get_merit_function()
+# jac = err.get_jacobian(err.get_x())

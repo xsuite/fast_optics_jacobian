@@ -126,8 +126,6 @@ def get_transfer_matrix_quad(k1, l, beta0, gamma0):
     cx = jnp.cos(kx * l)
     sy = l * jnp.sinc(ky * l / jnp.pi) # limit of sin(ky * l) / ky when ky -> 0
     cy = jnp.cos(ky * l)
-    # if k1 == 0:
-    #     return get_transfer_matrix_drift(l, beta0, gamma0)
 
     f_matrix = jnp.array([
         [cx, sx, 0, 0, 0, 0],
@@ -162,12 +160,6 @@ def get_transfer_matrix_bend(k0, k1, l, h, beta0, gamma0):
     cy = jnp.cos(ky * l)
     dx = (1 - cx) / kx**2
     j1 = (l - sx) / kx**2
-
-    # if k1 == 0:
-    #     sy = l # sin(ky * l) / ky converges against l for ky -> 0
-    #     cy = 1.0
-    # if k0 == 0 or h == 0:
-    #     return get_transfer_matrix_drift(l, beta0, gamma0)
 
     f_matrix = jnp.array([
         [cx, sx, 0, 0, 0, h/beta0 * dx],
@@ -270,7 +262,7 @@ def compute_param_derivatives(elements, elem_to_deriv, tw0):
                 i += 1
             elif isinstance(elem, xt.Quadrupole) and elem.k1 != 0:
                 transfer_matrices.append(get_transfer_matrix_quad(elem.k1, elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
-            elif isinstance(elem, xt.Bend):
+            elif isinstance(elem, xt.Bend) or isinstance(elem, xt.RBend):
                 transfer_matrices.append(get_transfer_matrix_bend(elem.k0, elem.k1, elem.length, elem.h, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
             elif isinstance(elem, xt.Multipole):
                 transfer_matrices.append(jnp.eye(6))
@@ -281,9 +273,7 @@ def compute_param_derivatives(elements, elem_to_deriv, tw0):
 
         parameter_values = jnp.array([tw0.betx[0], tw0.bety[0], tw0.alfx[0], tw0.alfy[0], tw0.mux[0], tw0.muy[0], tw0.dx[0], tw0.dy[0], tw0.dpx[0], tw0.dpy[0]])
 
-        total_transfer_matrix = jnp.eye(6)
         for i, tm in enumerate(transfer_matrices):
-            total_transfer_matrix = tm @ total_transfer_matrix
             parameter_values = get_values_new_from_transfer_matrix(tm, parameter_values)
         return parameter_values
 
@@ -371,7 +361,7 @@ mat_diffs = get_norm_diff_mat_for_elements(transfer_matrices, tw0)
 
 import jacobian_mod as jmod
 
-all_quad_sources, target_places, dkq_dvv = jmod.get_dependency_derivatives(line, opt)
+all_quad_sources, target_places, dkq_dvv = jmod.get_dependency_derivatives(opt)
 
 start = 's.ds.l8.b1'
 end = 'ip1'
@@ -398,7 +388,6 @@ for place in target_places: # ip1, ip8
             nonzero_qq.append(line.element_dict[qqnn])
             # add to list to be calculated
     nonzero_deriv = compute_param_derivatives(trunc_elements, nonzero_qq, opt_tw)
-    # BIG MISTAKE HERE
     for i, qqn in enumerate(nonzero_qqn):
         twiss_derivs[place][qqn] = nonzero_deriv[i]
     for qqn, deriv in zip(nonzero_qqn, nonzero_deriv.T):
@@ -438,7 +427,8 @@ for itt, tt in enumerate(opt.targets):
 
 
 err = opt.get_merit_function()
-jac = err.get_jacobian(err.get_x())
+jac = err.get_jacobian(err.get_x(), opt)
+
 
 # analyze ip1_bety: 0,15 -> 0,1 impact from first variable: kq6.l8b1 (0) to jacobian at place (0,7)
 # two quadrupoles: mqm.6l8.b1 and mqml.6l8.b1

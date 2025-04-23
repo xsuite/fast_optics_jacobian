@@ -5,6 +5,7 @@ import jax
 from jax import numpy as jnp
 import xtrack as xt
 from typing import NamedTuple
+from functools import partial
 
 all_quad_sources = None
 target_places = None
@@ -173,18 +174,20 @@ def encode_elements(elements, elem_to_deriv):
         k1_idx=jnp.array([e.k1_idx for e in encoded]),
     )
 
-
-@jax.jit
+@partial(jax.jit, static_argnums=(2,3))
 def get_values(k1_arr, encoded_elements, beta0, gamma0, initial_params):
     def scan_step(params, elem):
         TMF = TransferMatrixFactory
-        def quad_param(): return TMF.quad(k1_arr[elem.k1_idx], elem.data0, beta0, gamma0)
-        def quad_const(): return TMF.quad(elem.data0, elem.data1, beta0, gamma0)
-        def bend(): return TMF.bend(elem.data0, elem.data1, elem.data2, elem.data3, beta0, gamma0)
-        def drift(): return TMF.drift(elem.data0, beta0, gamma0)
-        def identity(): return jnp.eye(6)
 
-        tm = jax.lax.switch(elem.etype, [quad_param, quad_const, bend, drift, identity])
+        # Defining methods inside the switch to avoid recompilation
+        tm = jax.lax.switch(elem.etype, [
+            lambda: TMF.quad(k1_arr[elem.k1_idx], elem.data0, beta0, gamma0),
+            lambda: TMF.quad(elem.data0, elem.data1, beta0, gamma0),
+            lambda: TMF.bend(elem.data0, elem.data1, elem.data2, elem.data3, beta0, gamma0),
+            lambda: TMF.drift(elem.data0, beta0, gamma0),
+            lambda: jnp.eye(6)
+            ]
+        )
         new_params = get_values_from_transfer_matrix(tm, params)
         return new_params, None
 
@@ -313,9 +316,7 @@ def get_jac(opt, all_quad_sources, target_places, dkq_dvv):
         tar_weight = tt.weight
 
         for ivv in range(len(opt.vary)):
-
             vv = opt.vary[ivv].name
-
             quad_names = dkq_dvv[vv].keys()
 
             dtar_dvv = 0

@@ -211,91 +211,72 @@ def compute_param_derivatives(elements, elem_to_deriv, tw0):
     return jax.jacfwd(wrapped_get_values)(k1_arr)
 
 
-# def compute_param_derivatives(elements, elem_to_deriv, tw0):
-#     def get_values(k1_arr):
-#         transfer_matrices = []
-
-#         i = 0
-#         for elem in elements:
-#             if elem in elem_to_deriv:
-#                 assert isinstance(elem, xt.Quadrupole)
-#                 transfer_matrices.append(get_transfer_matrix_quad(k1_arr[i], elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
-#                 i += 1
-#             elif isinstance(elem, xt.Quadrupole) and elem.k1 != 0:
-#                 transfer_matrices.append(get_transfer_matrix_quad(elem.k1, elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
-#             elif isinstance(elem, xt.Bend):
-#                 transfer_matrices.append(get_transfer_matrix_bend(elem.k0, elem.k1, elem.length, elem.h, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
-#             elif isinstance(elem, xt.Multipole):
-#                 transfer_matrices.append(jnp.eye(6))
-#             elif isinstance(elem, xt.Drift) or hasattr(elem, 'length'):
-#                 transfer_matrices.append(get_transfer_matrix_drift(elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0]))
-#             else:
-#                 transfer_matrices.append(jnp.eye(6))
-
-#         parameter_values = jnp.array([tw0.betx[0], tw0.bety[0], tw0.alfx[0], tw0.alfy[0], tw0.mux[0], tw0.muy[0], tw0.dx[0], tw0.dy[0], tw0.dpx[0], tw0.dpy[0]])
-
-#         total_transfer_matrix = jnp.eye(6)
-#         for i, tm in enumerate(transfer_matrices):
-#             total_transfer_matrix = tm @ total_transfer_matrix
-#             parameter_values = get_values_from_transfer_matrix(tm, parameter_values)
-#         return parameter_values
-
-#     k1_arr = jnp.array([elem.k1 for elem in elem_to_deriv])
-#     return jax.jacfwd(get_values)(k1_arr)
-
-
 def get_dependency_derivatives():
     return all_quad_sources, target_places, dkq_dvv
 
 # collider, opt
 def get_dependency_derivatives(opt):
-    class FakeQuad:
+    class DummyElement:
+        """Placeholder object for injecting symbolic attributes."""
         pass
 
-    dkq_dvv = {} # Derivatives of quadrupole strengths with respect to the knobs
-    a = sympy.var("a")
-    for ivv in range(len(opt.vary)):
-        vv = opt.vary[ivv].name
+    dkq_dvv = {}  # Mapping: knob name -> {quad name -> d(quad)/d(knob)}
 
-        k1 = []
-        myelems = {}
-        for dd in opt.line.ref_manager.find_deps([opt.line.vars[vv]]):
-            if dd.__class__.__name__ == "AttrRef" and dd._key == "k1":
-                k1.append((dd._owner._key, dd._expr))
-                myelems[dd._owner._key] = FakeQuad()
+    for vary_entry in opt.vary:
+        knob_name = vary_entry.name
+        symbolic_var = sympy.var("a")
 
-        fdef = opt.line.ref_manager.mk_fun("myfun", a=opt.line.vars[vv])
-        gbl = {
+        # Find all quadrupole k1 dependencies on this knob
+        quad_exprs = []
+        dummy_quads = {}
+
+        for dep in opt.line.ref_manager.find_deps([opt.line.vars[knob_name]]):
+            if dep.__class__.__name__ == "AttrRef" and dep._key == "k1":
+                quad_name = dep._owner._key
+                quad_exprs.append((quad_name, dep._expr))
+                dummy_quads[quad_name] = DummyElement()
+
+        # Build symbolic expression function for the knob
+        func_code = opt.line.ref_manager.mk_fun("myfun", a=opt.line.vars[knob_name])
+        func_globals = {
             "vars": opt.line.ref_manager.containers["vars"]._owner.copy(),
-            "element_refs": myelems,
+            "element_refs": dummy_quads,
         }
-        lcl = {}
-        exec(fdef, gbl, lcl)
-        fff = lcl["myfun"]
+        func_locals = {}
 
-        fff(a)
-        dk1_dvv = {}
-        for kk, expr in k1:
-            dd = gbl["element_refs"][kk].k1.diff(a)
-            dk1_dvv[kk] = dd
+        ################### myfun ################################
+        # def myfun(a):
+        #    knob_name = a
+        #    element_refs[quad_name].k1 = (1.0 * knob_name) -> SymPy expression
+        #    ...
+        ##########################################################
 
-        dkq_dvv[vv] = dk1_dvv
+        exec(func_code, func_globals, func_locals) # Create function, stored in func_locals
+        func_locals["myfun"](symbolic_var) # Execute function
 
-    all_quad_sources = set()
-    for vv in dkq_dvv.keys():
-        all_quad_sources.update(dkq_dvv[vv].keys())
+        # Extract derivatives of k1 with respect to this knob
+        k1_derivs = {}
+        for quad_name, _ in quad_exprs:
+            derivative = func_globals["element_refs"][quad_name].k1.diff(symbolic_var)
+            k1_derivs[quad_name] = derivative
 
-    target_places = set()
-    for tt in opt.targets:
-        assert isinstance(tt.tar, tuple)
-        target_places.add(tt.tar[1])
+        dkq_dvv[knob_name] = k1_derivs
 
-    # Sort all quad sources by appearance in the line
-    quad_sources_list = []
-    for i in opt.action_twiss._tw0.name:
-        if i in all_quad_sources:
-            quad_sources_list.append(i)
-    return quad_sources_list, target_places, dkq_dvv
+    # Set of all quadrupole names appearing in the derivatives
+    quad_sources = set()
+    for derivs in dkq_dvv.values():
+        quad_sources.update(derivs.keys())
+
+    # Set of all target locations used in optimization
+    target_places = {target.tar[1] for target in opt.targets}
+    assert all(isinstance(t.tar, tuple) for t in opt.targets)
+
+    # Ordered list of quadrupole sources (based on their position in the beamline)
+    quad_sources_ordered = [
+        name for name in opt.action_twiss._tw0.name if name in quad_sources
+    ]
+
+    return quad_sources_ordered, target_places, dkq_dvv
 
 def get_jac(opt, all_quad_sources, target_places, dkq_dvv):
     # Get twiss for current knobs
@@ -382,4 +363,4 @@ def get_jacobian(self, x, opt, f0=None):
         return jac
 
 
-#xd.optimize.optimize.MeritFunctionForMatch.get_jacobian = get_jacobian
+xd.optimize.optimize.MeritFunctionForMatch.get_jacobian = get_jacobian

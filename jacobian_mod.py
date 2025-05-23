@@ -7,6 +7,8 @@ import xtrack as xt
 from typing import NamedTuple
 from functools import partial
 
+#jax.config.update("jax_enable_x64", True)
+
 all_quad_sources = None
 target_places = None
 dkq_dvv = None
@@ -125,12 +127,13 @@ QTY_IDX = {
 }
 
 def encode_elements(elements, elem_to_deriv):
-    deriv_lookup = {id(elem): i for i, elem in enumerate(elem_to_deriv)}
+    if elem_to_deriv is not None:
+        deriv_lookup = {id(elem): i for i, elem in enumerate(elem_to_deriv)}
 
     encoded = []
 
     for elem in elements:
-        if elem in elem_to_deriv:
+        if elem_to_deriv is not None and elem in elem_to_deriv:
             encoded.append(EncodedElem(
                 etype=0,
                 data0=elem.length,
@@ -142,7 +145,7 @@ def encode_elements(elements, elem_to_deriv):
                 data0=elem.k1,
                 data1=elem.length
             ))
-        elif isinstance(elem, xt.Bend):
+        elif isinstance(elem, xt.Bend) or isinstance(elem, xt.RBend):
             encoded.append(EncodedElem(
                 etype=2,
                 data0=elem.k0,
@@ -194,12 +197,47 @@ def get_values(k1_arr, encoded_elements, beta0, gamma0, initial_params):
     final_params, _ = jax.lax.scan(scan_step, initial_params, encoded_elements)
     return final_params
 
-def compute_param_derivatives(elements, elem_to_deriv, tw0):
+#@partial(jax.jit, static_argnums=(3,4))
+def compute_param_derivatives(elements, elem_to_deriv, init_cond, beta0, gamma0):
+    encoded_elements = encode_elements(elements, elem_to_deriv)
+    k1_arr = jnp.array([elem.k1 for elem in elem_to_deriv])
+
+    initial_params = jnp.array(init_cond)
+
+    def wrapped_get_values(k1_arr):
+        return get_values(k1_arr, encoded_elements, beta0, gamma0, initial_params)
+
+    pushfwd = partial(jax.jvp, wrapped_get_values, (k1_arr,))
+    basis = jnp.eye(len(k1_arr))
+    y, jac = jax.vmap(pushfwd, out_axes=(None, 1))((basis,))
+    return jac, y
+    #return jax.jacfwd(wrapped_get_values)(k1_arr)
+
+@partial(jax.jit, static_argnums=(1,2))
+def get_values_noderiv(encoded_elements, beta0, gamma0, initial_params):
+    def scan_step(params, elem):
+        TMF = TransferMatrixFactory
+
+        # Defining methods inside the switch to avoid recompilation
+        tm = jax.lax.switch(elem.etype, [
+            lambda: jnp.eye(6),
+            lambda: TMF.quad(elem.data0, elem.data1, beta0, gamma0),
+            lambda: TMF.bend(elem.data0, elem.data1, elem.data2, elem.data3, beta0, gamma0),
+            lambda: TMF.drift(elem.data0, beta0, gamma0),
+            lambda: jnp.eye(6)
+            ]
+        )
+        new_params = get_values_from_transfer_matrix(tm, params)
+        return new_params, None
+
+    final_params, _ = jax.lax.scan(scan_step, initial_params, encoded_elements)
+    return final_params
+
+def compute_values(elements, tw0):
     beta0 = tw0.particle_on_co.beta0[0]
     gamma0 = tw0.particle_on_co.gamma0[0]
 
-    encoded_elements = encode_elements(elements, elem_to_deriv)
-    k1_arr = jnp.array([elem.k1 for elem in elem_to_deriv])
+    encoded_elements = encode_elements(elements, None)
 
     initial_params = jnp.array([
         tw0.betx[0], tw0.bety[0], tw0.alfx[0], tw0.alfy[0],
@@ -207,11 +245,7 @@ def compute_param_derivatives(elements, elem_to_deriv, tw0):
         tw0.dpx[0], tw0.dpy[0]
     ])
 
-    def wrapped_get_values(k1_arr):
-        return get_values(k1_arr, encoded_elements, beta0, gamma0, initial_params)
-
-    return jax.jacfwd(wrapped_get_values)(k1_arr)
-
+    return get_values_noderiv(encoded_elements, beta0, gamma0, initial_params)
 
 def get_dependency_derivatives():
     return all_quad_sources, target_places, dkq_dvv
@@ -269,22 +303,48 @@ def get_dependency_derivatives(opt):
     for derivs in dkq_dvv.values():
         quad_sources.update(derivs.keys())
 
-    # Set of all target locations used in optimization
-    target_places = {target.tar[1] for target in opt.targets}
-    assert all(isinstance(t.tar, tuple) for t in opt.targets)
+    assert all(isinstance(t.tar, tuple) or isinstance(t, xt.TargetRelPhaseAdvance) for t in opt.targets)
+    # Set of all target locations used in optimization and sort them by order
+    target_places = set()
+    for target in opt.targets:
+        if isinstance(target.tar, tuple):
+            target_places.add(target.tar[1])
+        elif isinstance(target, xt.TargetRelPhaseAdvance):
+            if target.start != '__ele_start__':
+                target_places.add(target.start)
+            if target.end != '__ele_stop__':
+                target_places.add(target.end)
+            else:
+                if opt.action_twiss._tw0.name[-2] not in target_places:
+                    target_places.add(opt.action_twiss._tw0.name[-2])
+                # Assumption: Point before _end_point is same as endpoint given in opt
+        else:
+            raise ValueError(f"Unknown target type: {type(target)}")
+    # Convert to ordered list based on appearance of name in opt.line
+    index_map = {name: i for i, name in enumerate(opt.action_twiss._tw0.name)}
+    target_places = sorted(target_places, key=index_map.get)
 
     # Ordered list of quadrupole sources (based on their position in the beamline)
     quad_sources_ordered = [
         name for name in opt.action_twiss._tw0.name if name in quad_sources
     ]
 
+    # quad_sources and target_places are both ordered
     return quad_sources_ordered, target_places, dkq_dvv
 
 def get_jac(opt, all_quad_sources, target_places, dkq_dvv):
     # Get twiss for current knobs
     opt_tw = opt.action_twiss.run()
+    #opt_tw = opt.action_twiss._tw0
+    # Initial conditions for first derivative calculation
+    init_cond = np.array([opt_tw.betx[0], opt_tw.bety[0], opt_tw.alfx[0], opt_tw.alfy[0],
+                          opt_tw.mux[0], opt_tw.muy[0], opt_tw.dx[0], opt_tw.dy[0],
+                          opt_tw.dpx[0], opt_tw.dpy[0]])
+    beta0 = opt_tw.particle_on_co.beta0[0]
+    gamma0 = opt_tw.particle_on_co.gamma0[0]
+
     twiss_derivs = {}
-    for place in target_places: # ip1, ip8
+    for place in target_places: # ip1, ip8 in order of appearance
         # Calc derivative for all quadrupoles for target place
         # Source point = qqnn, Observation point = target
         twiss_derivs[place] = {}
@@ -293,12 +353,12 @@ def get_jac(opt, all_quad_sources, target_places, dkq_dvv):
         nonzero_qqn = []
         for qqnn in all_quad_sources:
             if opt_tw['s', place] < opt_tw['s', qqnn]:
-                twiss_derivs[place][qqnn] = np.zeros(10)
+                twiss_derivs[place][qqnn] = np.zeros(10) # batch after
             else:
                 nonzero_qqn.append(qqnn)
-                nonzero_qq.append(opt.line.element_dict[qqnn])
+                nonzero_qq.append(opt.line.element_dict[qqnn]) # first elements
                 # add to list to be calculated
-        nonzero_deriv = compute_param_derivatives(trunc_elements, nonzero_qq, opt_tw)
+        nonzero_deriv, _ = compute_param_derivatives(trunc_elements, nonzero_qq, init_cond, beta0, gamma0)
 
         for i, qqn in enumerate(nonzero_qqn):
             twiss_derivs[place][qqn] = nonzero_deriv[i]
@@ -308,20 +368,29 @@ def get_jac(opt, all_quad_sources, target_places, dkq_dvv):
     jac_estim = np.zeros((len(opt.targets), len(opt.vary)))
     for itt, tt in enumerate(opt.targets):
 
-        assert isinstance(tt.tar, tuple)
+        assert isinstance(tt.tar, tuple) or isinstance(tt, xt.TargetRelPhaseAdvance)
+        tar_start = None
+        if isinstance(tt.tar, tuple):
+            tar_quantity = tt.tar[0]
+            tar_place = tt.tar[1]
+        else:
+            tar_quantity = tt.var
+            tar_place = target_places[-1] if tt.end == '__ele_stop__' else tt.end
+            tar_start = None if tt.start == '__ele_start__' else tt.start
+            tar_weight = tt.weight
 
-        tar_quantity = tt.tar[0]
-        quantity_idx = QTY_IDX[tar_quantity]
-        tar_place = tt.tar[1]
         tar_weight = tt.weight
-
+        quantity_idx = QTY_IDX[tar_quantity]
         for ivv in range(len(opt.vary)):
             vv = opt.vary[ivv].name
             quad_names = dkq_dvv[vv].keys()
 
             dtar_dvv = 0
             for qqnn in quad_names:
-                dtar_dvv += twiss_derivs[tar_place][qqnn][quantity_idx] * float(dkq_dvv[vv][qqnn])
+                if qqnn in twiss_derivs[tar_place].keys():
+                    dtar_dvv += (twiss_derivs[tar_place][qqnn][quantity_idx]) * float(dkq_dvv[vv][qqnn])
+                    if tar_start is not None:
+                        dtar_dvv -= (twiss_derivs[tar_start][qqnn][quantity_idx]) * float(dkq_dvv[vv][qqnn])
 
             dtar_dvv *= tar_weight
 
@@ -329,8 +398,8 @@ def get_jac(opt, all_quad_sources, target_places, dkq_dvv):
 
     return jac_estim
 
-def get_jacobian(self, x, opt, f0=None):
-    if len(self.targets) == 12 and len(self.vary) == 20:
+def get_jacobian(self, x, opt, f0=None, flag = False):
+    if flag or len(self.targets) == 14 and len(self.vary) == 20 or len(self.targets) == 2 and len(self.vary) == 2:
         x = np.array(x).copy()
         steps = self._knobs_to_x(self.steps_for_jacobian)
         # get twiss
@@ -338,6 +407,7 @@ def get_jacobian(self, x, opt, f0=None):
         if all_quad_sources is None or target_places is None or dkq_dvv is None:
             all_quad_sources, target_places, dkq_dvv = get_dependency_derivatives(opt)
         jacobian = get_jac(opt, all_quad_sources, target_places, dkq_dvv)
+        self._last_jac = jacobian
         return jacobian
     else:
         if hasattr(self, "_force_jacobian"):
@@ -359,6 +429,7 @@ def get_jacobian(self, x, opt, f0=None):
             jac[:, ii] = (self(x, check_limits=False) - f0) / steps[ii]
             x[ii] -= steps[ii]
 
+        self._set_x(x)
         self._last_jac = jac
         return jac
 

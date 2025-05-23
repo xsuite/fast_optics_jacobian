@@ -53,12 +53,12 @@ opt = line.match(
             'kqtl11.l8b1', 'kqt12.l8b1', 'kqt13.l8b1',
             'kq4.l8b1', 'kq5.l8b1', 'kq4.r8b1', 'kq5.r8b1',
             'kq6.r8b1', 'kq7.r8b1', 'kq8.r8b1', 'kq9.r8b1',
-            'kq10.r8b1', 'kqtl11.r8b1', 'kqt12.r8b1', 'kqt13.r8b1'])],
+            'kq10.r8b1', 'kqtl11.r8b1', 'kqt12.r8b1', 'kqt13.r8b1'], step=1e-6)],
     targets=[
         xt.TargetSet(at='ip8', tars=('betx', 'bety', 'alfx', 'alfy', 'dx', 'dpx'), value=tw0),
         xt.TargetSet(at='ip1', betx=0.15, bety=0.10, alfx=0, alfy=0, dx=0, dpx=0),
-        # xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 's.ds.l8.b1']),
-        # xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 's.ds.l8.b1']),
+        xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 's.ds.l8.b1']),
+        xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 's.ds.l8.b1']),
     ])
 
 opt.check_limits = False
@@ -72,6 +72,11 @@ opt.target_status()
 # Drift, Sextupole, Octupole -> Drift
 
 #opt.solve()
+
+for elem in line.elements:
+    if isinstance(elem, xt.Bend) or isinstance(elem, xt.RBend):
+        elem.edge_entry_active=0
+        elem.edge_exit_active=0
 
 start_point = 'ip1'
 limit = 4000
@@ -287,8 +292,8 @@ print(f"Compare Twiss parameters and Backtracked parameters")
 backtracked_values, transfer_matrix, transfer_matrices, parameter_values = derive_values_by_backtrack(trunc_elements, tw0)
 
 print(tabulate([
-    ['bety', tw0.bety[-1], backtracked_values['bety'], parameter_values[1]],
     ['betx', tw0.betx[-1], backtracked_values['betx'], parameter_values[0]],
+    ['bety', tw0.bety[-1], backtracked_values['bety'], parameter_values[1]],
     ['alfx', tw0.alfx[-1], backtracked_values['alfx'], parameter_values[2]],
     ['alfy', tw0.alfy[-1], backtracked_values['alfy'], parameter_values[3]],
     ['mux', tw0.mux[-1], backtracked_values['mux'], parameter_values[4]],
@@ -369,7 +374,8 @@ opt_tw = line.twiss(start=start, end=end, init=tw_copy, init_at=xt.START)
 tw_names = opt_tw.name[:-1]
 
 # sort all_quad_sources based on occurence in opt_tw.name, which is a np.ndarray
-all_quad_sources = sorted(all_quad_sources, key=lambda x: np.where(tw_names == x)[0][0])
+index_map = {name: i for i, name in enumerate(tw_names)}
+all_quad_sources = sorted(all_quad_sources, key=index_map.get)
 
 # truncate line to analyze for start - end
 twiss_derivs = {}
@@ -403,27 +409,27 @@ for i in twiss_derivs.keys():
         twiss_derivs[i][j] = convert_list_to_dict(twiss_derivs[i][j])
 
 jac_estim = np.zeros((len(opt.targets), len(opt.vary)))
-for itt, tt in enumerate(opt.targets):
+# for itt, tt in enumerate(opt.targets):
 
-    assert isinstance(tt.tar, tuple)
+#     assert isinstance(tt.tar, tuple)
 
-    tar_quantity = tt.tar[0]
-    tar_place = tt.tar[1]
-    tar_weight = tt.weight
+#     tar_quantity = tt.tar[0]
+#     tar_place = tt.tar[1]
+#     tar_weight = tt.weight
 
-    for ivv in range(len(opt.vary)):
+#     for ivv in range(len(opt.vary)):
 
-        vv = opt.vary[ivv].name
+#         vv = opt.vary[ivv].name
 
-        quad_names = dkq_dvv[vv].keys()
+#         quad_names = dkq_dvv[vv].keys()
 
-        dtar_dvv = 0
-        for qqnn in quad_names:
-            dtar_dvv += twiss_derivs[tar_place][qqnn][tar_quantity] * float(dkq_dvv[vv][qqnn])
+#         dtar_dvv = 0
+#         for qqnn in quad_names:
+#             dtar_dvv += twiss_derivs[tar_place][qqnn][tar_quantity] * float(dkq_dvv[vv][qqnn])
 
-        dtar_dvv *= tar_weight
+#         dtar_dvv *= tar_weight
 
-        jac_estim[itt, ivv] = dtar_dvv
+#         jac_estim[itt, ivv] = dtar_dvv
 
 
 err = opt.get_merit_function()

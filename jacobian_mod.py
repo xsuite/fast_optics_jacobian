@@ -398,8 +398,19 @@ def get_jac(opt, all_quad_sources, target_places, dkq_dvv):
 
     return jac_estim
 
+# flag to set if targets contain anything but optical functions or dispersion
 def get_jacobian(self, x, opt, f0=None, flag = False):
-    if flag or len(self.targets) == 14 and len(self.vary) == 20 or len(self.targets) == 2 and len(self.vary) == 2:
+    for i in self.targets:
+        if not isinstance(i.tar, tuple) and not isinstance(i, xt.TargetRelPhaseAdvance):
+            flag = False
+            break
+        else:
+            if isinstance(i.tar, tuple):
+                if i.tar[0] not in ['betx', 'bety', 'alfx', 'alfy', 'mux', 'muy', 'dx', 'dy', 'dpx', 'dpy']:
+                    flag = False
+                    break
+        flag = True
+    if flag:
         x = np.array(x).copy()
         steps = self._knobs_to_x(self.steps_for_jacobian)
         # get twiss

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 collider = xt.Environment.from_json(
     '../xtrack/test_data/hllhc15_thick/hllhc15_collider_thick.json')
 collider.vars.load_madx(
-    '../xtrack/test_data/hllhc15_thick/opt_round_150_1500_copy.madx')
+    '../xtrack/test_data/hllhc15_thick/opt_round_150_1500.madx')
 
 collider.build_trackers()
 
@@ -16,8 +16,8 @@ line = collider.lhcb1
 
 for elem in line.elements:
     if isinstance(elem, xt.Bend) or isinstance(elem, xt.RBend):
-        elem.edge_entry_active=0
-        elem.edge_exit_active=0
+        elem.edge_entry_active=1
+        elem.edge_exit_active=1
 
 mng = line.to_madng(sequence_name='lhcb1')
 
@@ -39,32 +39,45 @@ def set_var_string(varylist):
             varstr += ',\n'
     return varstr
 
+
+df = tw0.to_df()
+
+
+mng.send("twpart = twiss {sequence = lhcb1, range = 's.ds.l8.b1/ip1'}")
+mng.send("mu1diff = twpart['ip1.l1'].mu1 - twpart['s.ds.l8.b1'].mu1")
+mng.send("mu2diff = twpart['ip1.l1'].mu2 - twpart['s.ds.l8.b1'].mu2")
+
+
 mng.send("""
 match {
-    command := twiss {sequence = lhcb1},
+    command := twiss {sequence = lhcb1, range = 's.ds.l8.b1/ip1'},
     variables = {
          """ + set_var_string(varylist) + """
     },
     equalities = {
-        { expr=\\t -> t.IP8.beta11-1.5, kind='beta', name='betx_ip8', tol=1e-4 },
-        { expr=\\t -> t.IP8.beta22-1.5, kind='beta', name='bety_ip8', tol=1e-4 },
-        { expr=\\t -> t.IP8.alfa11, kind='alfa', name='alfx_ip8', tol=1e-4 },
-        { expr=\\t -> t.IP8.alfa22, kind='alfa', name='alfy_ip8', tol=1e-4 },
-        { expr=\\t -> t.IP8.dx, kind='dx', name='dx_ip8', tol=1e-4 },
-        { expr=\\t -> t.IP8.dpx, kind='dpx', name='dy_ip8', tol=1e-4 },
-        { expr=\\t -> t.IP1.beta11-0.15, kind='beta', name='betx_ip1', tol=1e-4 },
-        { expr=\\t -> t.IP1.beta22-0.1, kind='beta', name='bety_ip1', tol=1e-4 },
-        { expr=\\t -> t.IP1.alfa11, kind='alfa', name='alfx_ip1', tol=1e-4 },
-        { expr=\\t -> t.IP1.alfa22, kind='alfa', name='alfy_ip1', tol=1e-4 },
-        { expr=\\t -> t.IP1.dx, kind='dx', name='dx_ip1', tol=1e-4 },
-        { expr=\\t -> t.IP1.dpx, kind='dpx', name='dy_ip1', tol=1e-4 },
+        { expr=\\t -> t.ip8.beta11-0.15, kind='beta', name='betx_ip8', tol=1e-4 },
+        { expr=\\t -> t.ip8.beta22-0.15, kind='beta', name='bety_ip8', tol=1e-4 },
+        { expr=\\t -> t.ip8.alfa11, kind='alfa', name='alfx_ip8', tol=1e-4 },
+        { expr=\\t -> t.ip8.alfa22, kind='alfa', name='alfy_ip8', tol=1e-4 },
+        { expr=\\t -> t.ip8.dx, kind='dx', name='dx_ip8', tol=1e-4 },
+        { expr=\\t -> t.ip8.dpx, kind='dpx', name='dy_ip8', tol=1e-4 },
+        { expr=\\t -> t.ip1.beta11-0.15, kind='beta', name='betx_ip1', tol=1e-4 },
+        { expr=\\t -> t.ip1.beta22-0.15, kind='beta', name='bety_ip1', tol=1e-4 },
+        { expr=\\t -> t.ip1.alfa11, kind='alfa', name='alfx_ip1', tol=1e-4 },
+        { expr=\\t -> t.ip1.alfa22, kind='alfa', name='alfy_ip1', tol=1e-4 },
+        { expr=\\t -> t.ip1.dx, kind='dx', name='dx_ip1', tol=1e-4 },
+        { expr=\\t -> t.ip1.dpx, kind='dpx', name='dy_ip1', tol=1e-4 },
+
     },
-    objective = { fmin=1e-3 },
-    info = 2,
-    maxcall = 700,
+    objective = { fmin=1e-10, broyden=true },
+    info = 3,
+    debug = 1,
+    maxcall = 1000,
 }
-"""
-)
+""")
+
+# { expr=\\t -> t["ip1.l1"].mu1 - t["s.ds.l8.b1"].mu1, kind='mux', name='mux_ip1', tol=1e-4 },
+# { expr=\\t -> t["ip1.l1"].mu2 - t["s.ds.l8.b1"].mu2, kind='muy', name='muy_ip1', tol=1e-4 },
 
 # mng.match(
 #     command="twiss {sequence=lhcb1}",

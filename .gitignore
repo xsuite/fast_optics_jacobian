@@ -1,0 +1,7 @@
+*.png
+*.log
+*.mad
+*.pdf
+.vscode/
+__pycache__/
+*.txt

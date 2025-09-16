@@ -34,7 +34,7 @@ def set_var_string(varylist):
     for var in varylist:
         var_split = var.split('.')
         var_name = f"{var_split[0]}_{var_split[1]}"
-        varstr += f"{{ var='MADX.{var_name}', name='{var_name}',  rtol=1e-6}}"
+        varstr += f"{{ var='MADX.{var_name}', name='{var_name}'}}"
         if var != varylist[-1]:
             varstr += ',\n'
     return varstr
@@ -43,91 +43,45 @@ def set_var_string(varylist):
 df = tw0.to_df()
 
 
-mng.send("twpart = twiss {sequence = lhcb1, range = 's.ds.l8.b1/ip1'}")
-mng.send("mu1diff = twpart['ip1.l1'].mu1 - twpart['s.ds.l8.b1'].mu1")
-mng.send("mu2diff = twpart['ip1.l1'].mu2 - twpart['s.ds.l8.b1'].mu2")
-
+mng.send("""
+    local observed in MAD.element.flags
+    lhcb1:select(observed, {list = {'s.ds.l8.b1', 'ip1.l1', 'ip1', 'ip8'}})
+    twpart, mf = twiss {sequence = lhcb1, observe = 1, savemap = true, info = 2}
+    X0 = twpart['s.ds.l8.b1'].__map
+    X0.status = "Aset" ! Bug corrected in next version
+    print("PRE SECOND TWISS")
+    local tws = twiss {sequence = lhcb1, X0 = X0, range = 's.ds.l8.b1/ip1', info = 2}
+    mu1_to_ip1 = tws['ip1.l1'].mu1
+    mu2_to_ip1 = tws['ip1.l1'].mu2
+""")
 
 mng.send("""
 match {
-    command := twiss {sequence = lhcb1, range = 's.ds.l8.b1/ip1'},
-    variables = {
+    command := twiss {sequence = lhcb1, X0=X0, range = 's.ds.l8.b1/ip1'},
+    variables = { rtol=1e-6,
          """ + set_var_string(varylist) + """
     },
-    equalities = {
-        { expr=\\t -> t.ip8.beta11-0.15, kind='beta', name='betx_ip8', tol=1e-4 },
-        { expr=\\t -> t.ip8.beta22-0.15, kind='beta', name='bety_ip8', tol=1e-4 },
-        { expr=\\t -> t.ip8.alfa11, kind='alfa', name='alfx_ip8', tol=1e-4 },
-        { expr=\\t -> t.ip8.alfa22, kind='alfa', name='alfy_ip8', tol=1e-4 },
-        { expr=\\t -> t.ip8.dx, kind='dx', name='dx_ip8', tol=1e-4 },
-        { expr=\\t -> t.ip8.dpx, kind='dpx', name='dy_ip8', tol=1e-4 },
-        { expr=\\t -> t.ip1.beta11-0.15, kind='beta', name='betx_ip1', tol=1e-4 },
-        { expr=\\t -> t.ip1.beta22-0.15, kind='beta', name='bety_ip1', tol=1e-4 },
-        { expr=\\t -> t.ip1.alfa11, kind='alfa', name='alfx_ip1', tol=1e-4 },
-        { expr=\\t -> t.ip1.alfa22, kind='alfa', name='alfy_ip1', tol=1e-4 },
-        { expr=\\t -> t.ip1.dx, kind='dx', name='dx_ip1', tol=1e-4 },
-        { expr=\\t -> t.ip1.dpx, kind='dpx', name='dy_ip1', tol=1e-4 },
+    equalities = { tol=1e-4,
+        { expr=\\t -> t.ip8.beta11-0.15, kind='beta', name='betx_ip8'},
+        { expr=\\t -> t.ip8.beta22-0.15, kind='beta', name='bety_ip8'},
+        { expr=\\t -> t.ip8.alfa11, kind='alfa', name='alfx_ip8'},
+        { expr=\\t -> t.ip8.alfa22, kind='alfa', name='alfy_ip8'},
+        { expr=\\t -> t.ip8.dx, kind='dx', name='dx_ip8'},
+        { expr=\\t -> t.ip8.dpx, kind='dpx', name='dy_ip8'},
+        { expr=\\t -> t.ip1.beta11-0.15, kind='beta', name='betx_ip1'},
+        { expr=\\t -> t.ip1.beta22-0.1, kind='beta', name='bety_ip1'},
+        { expr=\\t -> t.ip1.alfa11, kind='alfa', name='alfx_ip1'},
+        { expr=\\t -> t.ip1.alfa22, kind='alfa', name='alfy_ip1'},
+        { expr=\\t -> t.ip1.dx, kind='dx', name='dx_ip1'},
+        { expr=\\t -> t.ip1.dpx, kind='dpx', name='dy_ip1'},
+        { expr=\\t -> t["ip1.l1"].mu1 - mu1_to_ip1, kind='mu', name='mux_ip1'},
+        { expr=\\t -> t["ip1.l1"].mu2 - mu2_to_ip1, kind='mu', name='muy_ip1'},
+        ! { expr=\\t -> t.q1 - mu1_to_ip1, kind='mu', name='mux_ip1'},
+        ! { expr=\\t -> t.q2 - mu2_to_ip1, kind='mu', name='muy_ip1'},
 
     },
     objective = { fmin=1e-10, broyden=true },
-    info = 3,
-    debug = 1,
+    info = 2,
     maxcall = 1000,
 }
 """)
-
-# { expr=\\t -> t["ip1.l1"].mu1 - t["s.ds.l8.b1"].mu1, kind='mux', name='mux_ip1', tol=1e-4 },
-# { expr=\\t -> t["ip1.l1"].mu2 - t["s.ds.l8.b1"].mu2, kind='muy', name='muy_ip1', tol=1e-4 },
-
-# mng.match(
-#     command="twiss {sequence=lhcb1}",
-#     variables=[
-#         {"var": "'MADX.kq6_l8b1'", "name": "'kq6_l8b1'", "rtol": 1e-6}
-#     ],
-#     equalities=[
-#         {"expr": "\\t -> t.IP1.beta11-0.15", "kind":"'beta'", "name": "'betx_ip8'", "tol": 1e-4},
-#     ],
-#     objective={"fmin": 1e-3},
-#     info=2
-# )
-
-
-# # Initial twiss
-# tw0 = line.twiss()
-
-# # Inspect IPS
-# tw0.rows['ip.*'].cols['betx bety mux muy x y']
-
-# fd_step = 1e-6
-
-
-# # Prepare for optics matching: set limits and steps for all circuits
-# lm.set_var_limits_and_steps(collider)
-
-# # Inspect for one circuit
-# collider.vars.vary_default['kq4.l2b2']
-
-# # Twiss on a part of the machine (bidirectional)
-# tw_81_12 = line.twiss(start='ip8', end='ip2', init_at='ip1',
-#                                 betx=0.15, bety=0.15)
-
-# # s.ds.l8.b1 -> ip1
-# opt = line.match(
-#     solve=False,
-#     default_tol={None: 1e-8, 'betx': 1e-6, 'bety': 1e-6, 'alfx': 1e-6, 'alfy': 1e-6},
-#     start='s.ds.l8.b1', end='ip1',
-#     init=tw0, init_at=xt.START,
-#     vary=[
-#         # Only IR8 quadrupoles including DS
-#         #xt.VaryList(['kq6.l8b1', 'kq8.l8b1'], step=fd_step)],
-#         xt.VaryList(['kq6.l8b1', 'kq7.l8b1', 'kq8.l8b1', 'kq9.l8b1', 'kq10.l8b1',
-#             'kqtl11.l8b1', 'kqt12.l8b1', 'kqt13.l8b1',
-#             'kq4.l8b1', 'kq5.l8b1', 'kq4.r8b1', 'kq5.r8b1',
-#             'kq6.r8b1', 'kq7.r8b1', 'kq8.r8b1', 'kq9.r8b1',
-#             'kq10.r8b1', 'kqtl11.r8b1', 'kqt12.r8b1', 'kqt13.r8b1'], step=fd_step)],
-#     targets=[
-#         xt.TargetSet(at='ip8', tars=('betx', 'bety', 'alfx', 'alfy', 'dx', 'dpx'), value=tw0),
-#         xt.TargetSet(at='ip1', betx=0.15, bety=0.1, alfx=0, alfy=0, dx=0, dpx=0),
-#         xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 's.ds.l8.b1']),
-#         xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 's.ds.l8.b1']),
-#     ])

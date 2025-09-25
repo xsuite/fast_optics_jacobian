@@ -48,7 +48,6 @@ opt = line.match(
     start='s.ds.l8.b1', end='ip1',
     init=tw0, init_at=xt.START,
     vary=[
-        # Only IR8 quadrupoles including DS
         xt.VaryList(['kq6.l8b1', 'myvar', 'kq8.l8b1', 'kq9.l8b1', 'kq10.l8b1',
             'kqtl11.l8b1', 'kqt12.l8b1', 'kqt13.l8b1',
             'kq4.l8b1', 'kq5.l8b1', 'kq4.r8b1', 'kq5.r8b1',
@@ -235,7 +234,10 @@ def derive_values_by_backtrack(elements, tw0):
             transfer_matrices.append(transfer_matrix)
         elif isinstance(elem, xt.Multipole):
             # ignore
-            transfer_matrix = np.eye(6)
+            if elem.isthick and elem.length > 0:
+                transfer_matrix = get_transfer_matrix_drift(elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0])
+            else:
+                transfer_matrix = np.eye(6)
             transfer_matrices.append(transfer_matrix)
         elif isinstance(elem, xt.Drift) or hasattr(elem, 'length'):
             transfer_matrix = get_transfer_matrix_drift(elem.length, tw0.particle_on_co.beta0[0], tw0.particle_on_co.gamma0[0])
@@ -432,8 +434,8 @@ jac_estim = np.zeros((len(opt.targets), len(opt.vary)))
 #         jac_estim[itt, ivv] = dtar_dvv
 
 
-err = opt.get_merit_function()
-jac = err.get_jacobian(err.get_x(), opt)
+# err = opt.get_merit_function()
+# jac = err.get_jacobian(err.get_x(), opt)
 
 
 # analyze ip1_bety: 0,15 -> 0,1 impact from first variable: kq6.l8b1 (0) to jacobian at place (0,7)

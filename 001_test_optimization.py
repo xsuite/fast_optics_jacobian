@@ -1,13 +1,7 @@
 import xtrack as xt
 from xtrack._temp import lhc_match as lm
 import numpy as np
-import sympy
-import time
-
-# Add missing method to twiss table
-import twiss_deriv
-
-#import jacobian_mod as jacmod
+import matplotlib.pyplot as plt
 
 # Load LHC model
 collider = xt.Environment.from_json(
@@ -18,8 +12,6 @@ collider.vars.load_madx(
 collider.build_trackers()
 
 line = collider.lhcb1
-
-line.cycle('ip7', inplace=True)
 
 for elem in line.elements:
     if isinstance(elem, xt.Bend) or isinstance(elem, xt.RBend):
@@ -61,51 +53,85 @@ opt = line.match(
             'kqtl11.l8b1', 'kqt12.l8b1', 'kqt13.l8b1',
             'kq4.l8b1', 'kq5.l8b1', 'kq4.r8b1', 'kq5.r8b1',
             'kq6.r8b1', 'kq7.r8b1', 'kq8.r8b1', 'kq9.r8b1',
-            'kq10.r8b1', 'kqtl11.r8b1', 'kqt12.r8b1', 'kqt13.r8b1'], step=fd_step)],
+            'kq10.r8b1', 'kqtl11.r8b1', 'kqt12.r8b1', 'kqt13.r8b1'])],
     targets=[
-        # xt.TargetSet(at='ip8', tars=('bety'), value=tw0),
-        # xt.TargetSet(at='ip1', bety=0.1),
         xt.TargetSet(at='ip8', tars=('betx', 'bety', 'alfx', 'alfy', 'dx', 'dpx'), value=tw0),
         xt.TargetSet(at='ip1', betx=0.15, bety=0.1, alfx=0, alfy=0, dx=0, dpx=0),
-        xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 'ip8'], start='ip8', end='ip1.l1'),
-        xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 'ip8'], start='ip8', end='ip1.l1'),
-        # xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 's.ds.l8.b1']),
-        # xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 's.ds.l8.b1']),
-    ])
+        # xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 'ip8'], start='ip8', end='ip1.l1'),
+        # xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 'ip8'], start='ip8', end='ip1.l1'),
+        xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 's.ds.l8.b1']),
+        xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 's.ds.l8.b1']),
+    ],
+    use_ad=True)
 
 opt.check_limits = False
+
+opt.step(1)
 
 def set_fd_step(step):
     for vary in opt.vary:
         vary.step = step
-# Match for target bety: 0.15 --> [0.1, 0.14, 0.149, 0.1499, 0.15]
 
-opt.target_status()
+def measure_time():
+    opt.step(1)
+    opt.reload(0)
+    opt.solver._last_jac = None
+    opt._err.call_counter = 0
 
-#import jacobian_mod as jacmod
+    times = np.zeros((2, 14), dtype=float)
+    call_counts = np.zeros((2, 14), dtype=int)
 
-#opt.step(40)
+    for use_ad in [False, True]:
+        ad_ind = [False, True].index(use_ad)
+        opt._err.use_ad = ad_ind
 
-# import matplotlib.pyplot as plt
-# penalty = opt.log()['penalty']
+        for i in range(1, 15):
+            i_ind = i - 1
 
-# plt.plot(penalty)
-# plt.xlabel('Iteration')
-# plt.ylabel('Penalty')
-# plt.title(f'Optimization Penalty over Iterations (normal case) with fd step {fd_step:.0e}')
-# # use log scale
-# plt.savefig(f'optimization_penalty_{fd_step:.0e}.png')
-# plt.yscale('log')
-# plt.savefig(f'optimization_penalty_{fd_step:.0e}_log.png')
+            if i == 0:
+                i = False
+
+            import time
+            t0 = time.perf_counter()
+            opt.step(60, broyden=i)
+            t1 = time.perf_counter()
+            times[ad_ind][i_ind] = t1 - t0
+            call_counts[ad_ind][i_ind] = opt._err.call_counter
+            opt.reload(0)
+            opt.solver._last_jac = None
+            opt._err.call_counter = 0
+    return times, call_counts
+
+def plot_times(times, call_counts):
+    plt.figure(figsize=(12, 5))
+    plt.subplot(121)
+    plt.plot(np.arange(1, len(times[0]) + 1), times[0], label='FD')
+    plt.plot(np.arange(1, len(times[1]) + 1), times[1], label='AD')
+    plt.xlabel('Broyden interval')
+    plt.ylabel('Time (s)')
+    plt.legend()
+    plt.title('Optimization Time for different broyden intervals')
+
+    plt.subplot(122)
+    plt.plot(np.arange(1, len(call_counts[0]) + 1), call_counts[0], label='FD')
+    plt.plot(np.arange(1, len(call_counts[1]) + 1), call_counts[1], label='AD')
+    plt.xlabel('Broyden interval')
+    plt.ylabel('Function calls')
+    plt.legend()
+    plt.title('Function calls for different broyden intervals')
+    plt.tight_layout()
+    #plt.savefig("rt_adfd_broyden_new.pdf")
 
 
 # plt.show()
 
-def switch_to_ad():
-    import xdeps as xd
-    import jacobian_mod as jmod
-    xd.optimize.optimize.MeritFunctionForMatch.get_jacobian = jmod.get_jacobian
+def switch_to_ad(opt):
+    # import xdeps as xd
+    # import jacobian_mod as jmod
+    # xd.optimize.optimize.MeritFunctionForMatch.get_jacobian = jmod.get_jacobian
+    opt._err.use_ad = True
 
-def switch_to_fd():
-    import xdeps as xd
-    xd.optimize.optimize.MeritFunctionForMatch.get_jacobian = xd.optimize.optimize.MeritFunctionForMatch.get_jacobian
+def switch_to_fd(opt):
+    # import xdeps as xd
+    # xd.optimize.optimize.MeritFunctionForMatch.get_jacobian = xd.optimize.optimize.MeritFunctionForMatch.get_jacobian
+    opt._err.use_ad = False

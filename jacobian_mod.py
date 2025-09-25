@@ -197,7 +197,6 @@ def get_values(k1_arr, encoded_elements, beta0, gamma0, initial_params):
     final_params, _ = jax.lax.scan(scan_step, initial_params, encoded_elements)
     return final_params
 
-#@partial(jax.jit, static_argnums=(3,4))
 def compute_param_derivatives(elements, elem_to_deriv, init_cond, beta0, gamma0):
     encoded_elements = encode_elements(elements, elem_to_deriv)
     k1_arr = jnp.array([elem.k1 for elem in elem_to_deriv])
@@ -445,4 +444,4 @@ def get_jacobian(self, x, opt, f0=None, flag = False):
         return jac
 
 
-xd.optimize.optimize.MeritFunctionForMatch.get_jacobian = get_jacobian
+#xd.optimize.optimize.MeritFunctionForMatch.get_jacobian = get_jacobian

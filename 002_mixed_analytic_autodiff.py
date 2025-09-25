@@ -17,6 +17,7 @@ env.new('drift2', 'Drift', length=1.5)
 env.new('end', 'Marker', at=10., from_='qd@end')
 env.new('bendh', 'Bend', angle='bphi', k0_from_h=True, length=1.0),
 env.new('bendv', 'Bend', angle='bphi', rot_s_rad=np.pi/2, k0_from_h=True, length=1.0),
+env.new('qq', 'Quadrupole', k1=0., length=1.0, anchor='start')
 
 line = env.new_line(components=[
     env.place('qf', anchor='start', at=0.),
@@ -25,6 +26,7 @@ line = env.new_line(components=[
     #env.place('bendv', anchor='start', at=18., from_='bendh@end'),
     env.place('qd', anchor='start', at=10., from_='qf@end'),
     env.place('drift2', anchor='start', at=11., from_='qd@end'),
+    env.place('qq', anchor='start', at=12., from_='drift2@end'),
     env.place('end', at=10., from_='drift@end'),
 ])
 
@@ -245,7 +247,7 @@ def compute_param_derivatives(line, tw0):
             parameter_values = get_values_new_from_transfer_matrix(tm, parameter_values)
         return parameter_values
 
-    return jax.jacfwd(get_values)(jnp.array([elem.k1 for elem in line.elements if isinstance(elem, xt.Quadrupole)]))
+    return jax.jacrev(get_values)(jnp.array([elem.k1 for elem in line.elements if isinstance(elem, xt.Quadrupole)]))
 
 
 import sympy as sp
@@ -376,12 +378,12 @@ print("Finite difference gradient betx: ", grads_fd['alfy'])
 
 print(f"Automatic betx gradient: {compute_param_derivatives(line, tw0)}")
 
-deriv_sympy, symbols = compute_beta_derivative_sym(line, tw0)
-sympy_grad = []
-# Evaluate sympy expressions and print
-for i, elem, symbol in zip(range(len(quadrupoles)), quadrupoles, symbols):
-    sympy_grad.append(deriv_sympy[i].evalf(subs={symbol: quadrupole.k1 for symbol, quadrupole in zip(symbols, quadrupoles)}))
-print(f"Sympy gradient: {sympy_grad}")
+# deriv_sympy, symbols = compute_beta_derivative_sym(line, tw0)
+# sympy_grad = []
+# # Evaluate sympy expressions and print
+# for i, elem, symbol in zip(range(len(quadrupoles)), quadrupoles, symbols):
+#     sympy_grad.append(deriv_sympy[i].evalf(subs={symbol: quadrupole.k1 for symbol, quadrupole in zip(symbols, quadrupoles)}))
+# print(f"Sympy gradient: {sympy_grad}")
 
 def plot_betx_twiss_and_bt(transfer_matrices, tw0):
     import matplotlib.pyplot as plt

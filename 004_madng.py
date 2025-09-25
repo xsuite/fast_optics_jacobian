@@ -53,6 +53,17 @@ mng.send("""
     local tws = twiss {sequence = lhcb1, X0 = X0, range = 's.ds.l8.b1/ip1', info = 2}
     mu1_to_ip1 = tws['ip1.l1'].mu1
     mu2_to_ip1 = tws['ip1.l1'].mu2
+    -- tws2 = twiss {sequence = lhcb1, X0 = X0, range = 's.ds.l8.b1/ip1', info = 2}
+
+    local printf in MAD.utility
+    time_1 = os.clock()
+    n = 0
+    while n < 10 do
+        twiss {sequence = lhcb1, X0=X0, range = 's.ds.l8.b1/ip1'}
+        n = n + 1
+    end
+    time_2 = os.clock()-time_1
+    print("TIME: ",time_2 / 10, " s per twiss")
 """)
 
 mng.send("""
@@ -80,7 +91,16 @@ match {
         ! { expr=\\t -> t.q2 - mu2_to_ip1, kind='mu', name='muy_ip1'},
 
     },
-    objective = { fmin=1e-10, broyden=true },
+    -- weights = {
+    --    beta = 1.,
+    --    alfa = 1.,
+    --    dx = 1.,
+    --    dpx = 1.,
+    --    mu = 1.,
+    --    qx = 1.,
+    --    qy = 1.,
+    --},
+    objective = { broyden=true },
     info = 2,
     maxcall = 1000,
 }

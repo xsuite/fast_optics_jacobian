@@ -8,7 +8,19 @@ import pandas as pd
 # Import custom timing module
 from pyprof import timing
 
-plt.style.use('../../latex.mplstyle')
+COUNT = 10
+BROYDEN_MAX = 7
+
+plt.style.use('../../latex_presentation.mplstyle')
+
+plt.rcParams.update({
+    "font.size": 18,        # default text size
+    "axes.titlesize": 20,   # title
+    "axes.labelsize": 18,   # x and y labels
+    "xtick.labelsize": 16,  # x tick labels
+    "ytick.labelsize": 16,  # y tick labels
+    "legend.fontsize": 16,  # legend
+})
 
 # Load LHC model
 collider = xt.Environment.from_json(
@@ -54,19 +66,43 @@ opt = line.match(
             'kq6.r8b1', 'kq7.r8b1', 'kq8.r8b1', 'kq9.r8b1',
             'kq10.r8b1', 'kqtl11.r8b1', 'kqt12.r8b1', 'kqt13.r8b1'])],
     targets=[
-        xt.TargetSet(at='ip8', tars=('betx', 'bety', 'alfx', 'alfy', 'dx', 'dpx'), value=tw0),
-        xt.TargetSet(at='ip1', betx=0.15, bety=0.1, alfx=0, alfy=0, dx=0, dpx=0),
-        xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 's.ds.l8.b1']),
-        xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 's.ds.l8.b1']),
+        xt.TargetSet(at='ip8', tars=('betx', 'bety', 'alfx', 'alfy', 'dx', 'dpx'), value=tw0, weight=1),
+        xt.TargetSet(at='ip1', betx=0.15, bety=0.1, alfx=0, alfy=0, dx=0, dpx=0, weight=1),
+        xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 's.ds.l8.b1'], weight=1),
+        xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 's.ds.l8.b1'], weight=1),
     ],
     use_ad=True)
 
+tw_ng = line.madng_twiss()
+
+opt_ng = line.match(
+    solve=False,
+    default_tol={None: 1e-8, 'beta11_ng': 1e-6, 'beta22_ng': 1e-6, 'alfa11_ng': 1e-6, 'alfa22_ng': 1e-6},
+    start='s.ds.l8.b1', end='ip1',
+    init=tw_ng, init_at=xt.START,
+    vary=[
+        xt.VaryList(['kq6.l8b1', 'kq7.l8b1', 'kq8.l8b1', 'kq9.l8b1', 'kq10.l8b1',
+            'kqtl11.l8b1', 'kqt12.l8b1', 'kqt13.l8b1',
+            'kq4.l8b1', 'kq5.l8b1', 'kq4.r8b1', 'kq5.r8b1',
+            'kq6.r8b1', 'kq7.r8b1', 'kq8.r8b1', 'kq9.r8b1',
+            'kq10.r8b1', 'kqtl11.r8b1', 'kqt12.r8b1', 'kqt13.r8b1'])],
+    targets=[
+        xt.TargetSet(at='ip8', tars=('beta11_ng', 'beta22_ng', 'alfa11_ng', 'alfa22_ng', 'dx_ng', 'dpx_ng'), value=tw_ng, weight=1),
+        xt.TargetSet(at='ip1', beta11_ng=0.15, beta22_ng=0.1, alfa11_ng=0, alfa22_ng=0, dx_ng=0, dpx_ng=0, weight=1),
+        xt.TargetRelPhaseAdvance('mu1_ng', start='s.ds.l8.b1', end='ip1.l1',
+                                  value = tw_ng['mu1_ng', 'ip1.l1'] - tw_ng['mu1_ng', 's.ds.l8.b1'], weight=1),
+        xt.TargetRelPhaseAdvance('mu2_ng', start='s.ds.l8.b1', end='ip1.l1',
+                                  value = tw_ng['mu2_ng', 'ip1.l1'] - tw_ng['mu2_ng', 's.ds.l8.b1'], weight=1),
+    ])
+
 opt.check_limits = False
+opt_ng.check_limits = False
 
 timing.start_timing('jitcompile')
 opt.step(1) # JIT-compile
 timing.stop_timing()
 
+opt_ng.step(1)
 
 def reset_benchmark(opt):
     opt.reload(0)
@@ -91,20 +127,19 @@ def populate_dictionary(dict, opt, key, ind):
 
 def benchmark(opt, fname=None):
     reset_benchmark(opt)
+    reset_benchmark(opt_ng)
     # Do AD benchmark
-    count = 10
-    broyden_max = 14
 
     data_dict = {}
-    for i in range(count):
+    for i in range(COUNT):
         timing.start_timing('ad_solve')
-        opt.step(40)
+        opt.step(100)
         timing.stop_timing()
         data_dict = populate_dictionary(data_dict, opt, f'ad_solve', i)
         reset_benchmark(opt)
 
-    for i in range(count):
-        for j in range(1, broyden_max + 1):
+    for i in range(COUNT):
+        for j in range(1, BROYDEN_MAX + 1):
             timing.start_timing(f'ad_solve_broyden_{j}')
             opt.step(100, broyden=j)
             timing.stop_timing()
@@ -119,15 +154,15 @@ def benchmark(opt, fname=None):
 
     switch_to_fd(opt)
 
-    for i in range(count):
+    for i in range(COUNT):
         timing.start_timing('fd_solve')
-        opt.step(40)
+        opt.step(100)
         timing.stop_timing()
         data_dict = populate_dictionary(data_dict, opt, f'fd_solve', i)
         reset_benchmark(opt)
 
-    for i in range(count):
-        for j in range(1, broyden_max + 1):
+    for i in range(COUNT):
+        for j in range(1, BROYDEN_MAX + 1):
             timing.start_timing(f'fd_solve_broyden_{j}')
             opt.step(100, broyden=j)
             timing.stop_timing()
@@ -140,11 +175,68 @@ def benchmark(opt, fname=None):
         data_dict = populate_dictionary(data_dict, opt, f'fd_solve_broyden_full', i)
         reset_benchmark(opt)
 
+    for i in range(COUNT):
+        timing.start_timing('madngfd_solve')
+        opt_ng.step(100)
+        timing.stop_timing()
+        data_dict = populate_dictionary(data_dict, opt_ng, f'madngfd_solve', i)
+        reset_benchmark(opt_ng)
+
+    for i in range(COUNT):
+        for j in range(1, BROYDEN_MAX + 1):
+            timing.start_timing(f'madngfd_solve_broyden_{j}')
+            opt_ng.step(100, broyden=j)
+            timing.stop_timing()
+            data_dict = populate_dictionary(data_dict, opt_ng, f'madngfd_solve_broyden_{j}', i)
+            reset_benchmark(opt_ng)
+
+        timing.start_timing(f'madngfd_solve_broyden_full')
+        opt_ng.step(100, broyden=True)
+        timing.stop_timing()
+        data_dict = populate_dictionary(data_dict, opt_ng, f'madngfd_solve_broyden_full', i)
+        reset_benchmark(opt_ng)
+
     if fname is None:
         fname = "generic_benchmark.json"
+
+    if not fname.endswith('.json'):
+        fname += ".json"
+
     with open(fname, "w") as f:
         json.dump(data_dict, f, indent=4)
 
+    return data_dict
+
+def benchmark_other_algorithms(opt, fname=None):
+    opt._err.use_ad = False
+    reset_benchmark(opt)
+    # Benchmark ls trf and ls dogbox
+
+    data_dict = {}
+    for i in range(COUNT):
+        timing.start_timing('ls_trf_solve')
+        opt.run_ls_trf(verbose=2)
+        timing.stop_timing()
+        data_dict = populate_dictionary(data_dict, opt, f'ls_trf_solve', i)
+        opt.target_status()
+        reset_benchmark(opt)
+
+    for i in range(COUNT):
+        timing.start_timing('ls_dogbox_solve')
+        opt.run_ls_dogbox(verbose=2)
+        timing.stop_timing()
+        data_dict = populate_dictionary(data_dict, opt, f'ls_dogbox_solve', i)
+        opt.target_status()
+        reset_benchmark(opt)
+
+    if fname is None:
+        fname = "generic_benchmark.json"
+
+    if not fname.endswith('.json'):
+        fname += ".json"
+
+    with open(fname, "w") as f:
+        json.dump(data_dict, f, indent=4)
     return data_dict
 
 def get_dict_from_file(fname):
@@ -235,8 +327,8 @@ def get_stats(df):
     stats["std_runtime"] /= 1000
 
     # throw error message "hello" if assert fails
-    # assert np.all(stats["calls"] == np.floor(stats["calls"])), "Non-integer call counts found!"
-    # assert np.all(stats["steps"] == np.floor(stats["steps"])), "Non-integer step counts found!"
+    assert np.all(stats["calls"] == np.floor(stats["calls"])), "Non-integer call counts found!"
+    assert np.all(stats["steps"] == np.floor(stats["steps"])), "Non-integer step counts found!"
 
     stats["calls"] = stats["calls"].astype(int)
     stats["steps"] = stats["steps"].astype(int)
@@ -247,8 +339,9 @@ def _normalize_intervals(stats):
     stats = stats.copy()
     # force everything to str
     stats["interval"] = stats["interval"].apply(lambda x: str(x))
+    interval_len = len(stats["interval"].unique())
     # custom order
-    interval_order = ["no_broyden"] + [str(i) for i in range(1, 15)] + ["full"]
+    interval_order = ["no_broyden"] + [str(i) for i in range(1, interval_len - 1)] + ["full"]
     stats["interval"] = pd.Categorical(stats["interval"], categories=interval_order, ordered=True)
     return stats, interval_order
 
@@ -262,12 +355,13 @@ def _fix_ticks_and_legend(ax, interval_order):
 
     # legend
     handles, labels = ax.get_legend_handles_labels()
-    labels = [lbl.replace("ad", "AD").replace("fd", "FD") for lbl in labels]
+    labels = [lbl.upper() for lbl in labels]
+    labels[-1] = labels[-1].replace("MADNGFD", "MAD-NG Twiss FD")
     ax.legend(handles, labels)
 
-def plot_runtime(stats, savefig=False):
+def plot_runtime(stats, savefig=False, fname=None, figsize=(6.4, 4.8)):
     stats, interval_order = _normalize_intervals(stats)
-    plt.figure()
+    plt.figure(figsize=figsize)
     ax = plt.gca()
 
     for method in stats["method"].unique():
@@ -282,96 +376,33 @@ def plot_runtime(stats, savefig=False):
             linestyle="-"
         )
 
-    ax.set_xlabel("Consecutive Broyden Usage")
-    ax.set_ylabel("Mean Runtime (s)")
-    ax.set_title("Runtime Optics Matching IP1")
+    ax.set_xlabel("Consecutive Broyden Usage", fontsize=16)
+    ax.set_ylabel("Mean Runtime (s)", fontsize=16)
+    ax.set_title("Runtime Optics Matching IP1", fontsize=18)
+    ax.tick_params(axis='both', which='major', labelsize=14)
     ax.grid(True, which="both", ls="--", linewidth=0.5)
 
     _fix_ticks_and_legend(ax, interval_order)
 
     plt.tight_layout()
     if savefig:
-        plt.savefig("benchmark_ad_vs_fd_runtime.pdf")
-    plt.show()
+        if fname is None:
+            fname = "benchmark_ad_vs_fd_runtime.pdf"
 
-def plot_call_counts(stats, savefig=False):
-    plt.figure()
-    for method in stats['method'].unique():
-        method_data = stats[stats['method'] == method]
-        plt.plot(
-            method_data['interval'].astype(str),
-            method_data['calls'],
-            label=method,
-            marker='o',
-            linestyle='-'
-        )
-
-    plt.xlabel('Consecutive Broyden Usage')
-    plt.ylabel('Function Calls')
-    plt.title('Evaluation Function Calls Optics Matching Methods')
-    plt.legend()
-    plt.grid(True, which="both", ls="--", linewidth=0.5)
-
-    # Replace no_broyden with "none" in x-ticks
-    from matplotlib.ticker import FixedLocator
-    ax = plt.gca()
-    ticks = ax.get_xticks()
-    labels = [lbl.get_text().replace("no_broyden", "None") for lbl in ax.get_xticklabels()]
-
-    # Set tick positions explicitly using FixedLocator
-    ax.xaxis.set_major_locator(FixedLocator(ticks))
-    ax.set_xticklabels(labels)
-
-    # Replace ad and fd by AD and FD in legend
-    handles, labels = ax.get_legend_handles_labels()
-    labels = [lbl.replace("ad", "AD").replace("fd", "FD") for lbl in labels]
-    ax.legend(handles, labels)
-    plt.tight_layout()
-    if savefig:
-        plt.savefig("benchmark_ad_vs_fd_calls.pdf")
-    plt.show()
-
-def plot_step_counts(stats, savefig=False):
-    plt.figure()
-    for method in stats['method'].unique():
-        method_data = stats[stats['method'] == method]
-        plt.plot(
-            method_data['interval'].astype(str),
-            method_data['steps'],
-            label=method,
-            marker='o',
-            linestyle='-'
-        )
-
-    plt.xlabel('Consecutive Broyden Usage')
-    plt.ylabel('Steps')
-    plt.title('Optimization Steps Optics Matching')
-    plt.legend()
-    plt.grid(True, which="both", ls="--", linewidth=0.5)
-
-    # Replace no_broyden with "none" in x-ticks
-    from matplotlib.ticker import FixedLocator
-    ax = plt.gca()
-    ticks = ax.get_xticks()
-    labels = [lbl.get_text().replace("no_broyden", "None") for lbl in ax.get_xticklabels()]
-
-    # Set tick positions explicitly using FixedLocator
-    ax.xaxis.set_major_locator(FixedLocator(ticks))
-    ax.set_xticklabels(labels)
-
-    # Replace ad and fd by AD and FD in legend
-    handles, labels = ax.get_legend_handles_labels()
-    labels = [lbl.replace("ad", "AD").replace("fd", "FD") for lbl in labels]
-    ax.legend(handles, labels)
-    plt.tight_layout()
-    if savefig:
-        plt.savefig("benchmark_ad_vs_fd_steps.pdf")
+        if not fname.endswith('.pdf') or not fname.endswith('.json'):
+            fname += "_runtime.pdf"
+        else:
+            fname = fname.replace('.pdf', '_runtime.pdf')
+            fname = fname.replace('.json', '_runtime.pdf')
+        if not fname.endswith('.pdf'):
+            fname += ".pdf"
+        plt.savefig(fname)
     plt.show()
 
 
-def plot_call_counts(stats, savefig=False):
+def plot_call_counts(stats, savefig=False, fname=None, figsize=(6.4, 4.8)):
     stats, interval_order = _normalize_intervals(stats)
-    plt.figure()
+    plt.figure(figsize=figsize)
     ax = plt.gca()
 
     for method in stats["method"].unique():
@@ -384,22 +415,30 @@ def plot_call_counts(stats, savefig=False):
             linestyle="-"
         )
 
-    ax.set_xlabel("Consecutive Broyden Usage")
-    ax.set_ylabel("Function Calls")
-    ax.set_title("Evaluation Function Calls Optics Matching Methods")
+    ax.set_xlabel("Consecutive Broyden Usage", fontsize=16)
+    ax.set_ylabel("Function Calls", fontsize=16)
+    ax.set_title("Twiss Calls Matching IP1", fontsize=18)
+    ax.tick_params(axis='both', which='major', labelsize=14)
     ax.grid(True, which="both", ls="--", linewidth=0.5)
 
     _fix_ticks_and_legend(ax, interval_order)
 
     plt.tight_layout()
     if savefig:
-        plt.savefig("benchmark_ad_vs_fd_calls.pdf")
+        if fname is None:
+            fname = "benchmark_ad_vs_fd_calls.pdf"
+        if not fname.endswith('.pdf') or not fname.endswith('.json'):
+            fname += "_calls.pdf"
+        else:
+            fname = fname.replace('.pdf', '_calls.pdf')
+            fname = fname.replace('.json', '_calls.pdf')
+        plt.savefig(fname)
     plt.show()
 
 
-def plot_step_counts(stats, savefig=False):
+def plot_step_counts(stats, savefig=False, fname=None, figsize=(6.4, 4.8)):
     stats, interval_order = _normalize_intervals(stats)
-    plt.figure()
+    plt.figure(figsize=figsize)
     ax = plt.gca()
 
     for method in stats["method"].unique():
@@ -412,28 +451,43 @@ def plot_step_counts(stats, savefig=False):
             linestyle="-"
         )
 
-    ax.set_xlabel("Consecutive Broyden Usage")
-    ax.set_ylabel("Steps")
-    ax.set_title("Optimization Steps Optics Matching")
+    ax.set_xlabel("Consecutive Broyden Usage", fontsize=16)
+    ax.set_ylabel("Steps", fontsize=16)
+    ax.set_title("Optimization Steps Optics Matching", fontsize=18)
+    ax.tick_params(axis='both', which='major', labelsize=14)
     ax.grid(True, which="both", ls="--", linewidth=0.5)
 
     _fix_ticks_and_legend(ax, interval_order)
 
     plt.tight_layout()
     if savefig:
-        plt.savefig("benchmark_ad_vs_fd_steps.pdf")
+        if fname is None:
+            fname = "benchmark_ad_vs_fd_steps.pdf"
+        if not fname.endswith('.pdf') or not fname.endswith('.json'):
+            fname += "_steps.pdf"
+        else:
+            fname = fname.replace('.pdf', '_steps.pdf')
+            fname = fname.replace('.json', '_steps.pdf')
+        plt.savefig(fname)
     plt.show()
 
-def pipeline_visualization(data=None, do_benchmark=False, savefig=False):
+def pipeline_visualization(data=None, do_benchmark=False, savefig=False, figsize=(6.4, 4.8), methods=['ad', 'fd']):
     if do_benchmark:
         assert isinstance(data, str), "If benchmark is True, data must be a filename string."
+        fname = data
         data = benchmark(opt, fname=data)
     else:
         if isinstance(data, str):
+            fname = data
+            if not data.endswith('.json'):
+                data += ".json"
             data = get_dict_from_file(data)
         assert isinstance(data, dict), "Input data must be a dictionary or a filename string."
     df = dict_to_dataframe(data)
     stats = get_stats(df)
-    plot_runtime(stats, savefig=savefig)
-    plot_call_counts(stats, savefig=savefig)
-    plot_step_counts(stats, savefig=savefig)
+    if fname.endswith('.json'):
+        fname = fname[:-5]
+    stats = stats[stats["method"].isin(methods)]
+    plot_runtime(stats, savefig=savefig, fname=fname, figsize=figsize)
+    plot_call_counts(stats, savefig=savefig, fname=fname, figsize=figsize)
+    plot_step_counts(stats, savefig=savefig, fname=fname, figsize=figsize)

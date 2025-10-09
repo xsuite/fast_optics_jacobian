@@ -47,20 +47,16 @@ opt = line.match(
     start='s.ds.l8.b1', end='ip1',
     init=tw0, init_at=xt.START,
     vary=[
-        # Only IR8 quadrupoles including DS
-        #xt.VaryList(['kq6.l8b1', 'kq8.l8b1'], step=fd_step)],
         xt.VaryList(['kq6.l8b1', 'kq7.l8b1', 'kq8.l8b1', 'kq9.l8b1', 'kq10.l8b1',
             'kqtl11.l8b1', 'kqt12.l8b1', 'kqt13.l8b1',
             'kq4.l8b1', 'kq5.l8b1', 'kq4.r8b1', 'kq5.r8b1',
             'kq6.r8b1', 'kq7.r8b1', 'kq8.r8b1', 'kq9.r8b1',
             'kq10.r8b1', 'kqtl11.r8b1', 'kqt12.r8b1', 'kqt13.r8b1'])],
     targets=[
-        xt.TargetSet(at='ip8', tars=('betx', 'bety', 'alfx', 'alfy', 'dx', 'dpx'), value=tw0),
-        xt.TargetSet(at='ip1', betx=0.15, bety=0.1, alfx=0, alfy=0, dx=0, dpx=0),
-        # xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 'ip8'], start='ip8', end='ip1.l1'),
-        # xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 'ip8'], start='ip8', end='ip1.l1'),
-        xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 's.ds.l8.b1']),
-        xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 's.ds.l8.b1']),
+        xt.TargetSet(at='ip8', tars=('betx', 'bety', 'alfx', 'alfy', 'dx', 'dpx'), value=tw0, weight=1),
+        xt.TargetSet(at='ip1', betx=0.15, bety=0.1, alfx=0, alfy=0, dx=0, dpx=0, weight=1),
+        xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 's.ds.l8.b1'], weight=1),
+        xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 's.ds.l8.b1'], weight=1),
     ],
     use_ad=True)
 
@@ -135,3 +131,16 @@ def switch_to_fd(opt):
     # import xdeps as xd
     # xd.optimize.optimize.MeritFunctionForMatch.get_jacobian = xd.optimize.optimize.MeritFunctionForMatch.get_jacobian
     opt._err.use_ad = False
+
+# Save plot from s.ds.l8.b1 to ip1
+plt.style.use('../../latex_presentation.mplstyle')
+tw_s_ip1 = line.twiss(start='s.ds.l8.b1', end='ip1', init=tw0, init_at=xt.START)
+quads = opt._err.quad_sources_ord
+quad_pos = tw_s_ip1['s', quads]
+
+tw_plot = tw_s_ip1.plot('betx bety')
+
+for iq, q in enumerate(quads):
+    plt.axvline(quad_pos[iq], color='k', linestyle='--', alpha=0.7)
+
+tw_plot.ax.set_xticks([23000, 24000, 25000, 26000])

@@ -14,11 +14,6 @@ collider.build_trackers()
 
 line = collider.lhcb1
 
-for elem in line.elements:
-    if isinstance(elem, xt.Bend) or isinstance(elem, xt.RBend):
-        elem.edge_entry_active=1
-        elem.edge_exit_active=1
-
 mng = line.to_madng(sequence_name='lhcb1')
 
 tw0 = mng.twiss(sequence="lhcb1")[0]

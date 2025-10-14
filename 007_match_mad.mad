@@ -4,7 +4,7 @@ local beam, sequence, mtable, twiss, match in MAD
 local mad_func, msg = loadfile('mng_collider_file.mad', nil, MADX)
 assert(mad_func, msg)()
 
-local lhcb1 = MADX.seq
+local lhcb1 = MADX.lhcb1
 
 lhcb1.beam = beam {particle='proton', energy=7000}
 
@@ -57,6 +57,8 @@ match {
         { expr=\t -> t.ip1.dpx, kind='dpx', name='dy_ip1'},
         { expr=\t -> t["ip1.l1"].mu1 - mu1_to_ip1, kind='mu', name='mux_ip1'},
         { expr=\t -> t["ip1.l1"].mu2 - mu2_to_ip1, kind='mu', name='muy_ip1'},
+        ! { expr=\t -> t.q1 - mu1_to_ip1, kind='mu', name='mux_ip1'},
+        ! { expr=\t -> t.q2 - mu2_to_ip1, kind='mu', name='muy_ip1'},
     },
     weights = {
         beta = 1.,

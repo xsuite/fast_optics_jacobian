@@ -191,14 +191,14 @@ def collapse_selected_clusters(dot_graph, patterns=("quad", "bend", "drift")):
 
     # make copy of dot_graph
     dot_graph = safe_clone_pydot_graph(dot_graph)
-        
+
     def _collapse_recursive(graph, topgraph):
         # If subgraph should be removed: Remove all nodes inside, but copy edges
         # to nodes outside the subgraph to the new collapsed node
         removed_node_names = []
 
         for sg in graph.get_subgraphs():
-            sg_name = sg.get_name().strip('"')
+            sg_name = sg.get_name().strip('"').replace(' ', '')
             if pattern.search(sg_name):
                 # -> remove subgraphs, all nodes and edges that are not here
                 # for every edge, look up the parent graph(s) too
@@ -208,11 +208,12 @@ def collapse_selected_clusters(dot_graph, patterns=("quad", "bend", "drift")):
 
                 # create a collapsed node
                 label = sg.get_label() or sg_name
-                collapsed_node = pydot.Node(f"{label}Col")
+                label_trimmed = label.strip('"').replace(' ', '')
+                collapsed_node = pydot.Node(f"{label_trimmed}")
                 graph.add_node(collapsed_node)
 
                 # Traverse entire graph top-down to delete edges
-                _modify_edges(topgraph, topgraph, remove_node_names, f"{label}Col")
+                _modify_edges(topgraph, topgraph, remove_node_names, f"{label_trimmed}")
 
                 # Delete Subgraph
                 del graph.obj_dict['subgraphs'][sg_name]
@@ -288,8 +289,8 @@ g2.write_raw("test_graph2.dot")
 g2.write_png("test_graph2.png")
 
 graph = safe_load_pydot_from_file("graph_autodiff.dot")
-graph.write_png("graph_autodiff.png")
+graph.write_png("graph_autodiff2.png")
 
-graph2 = collapse_selected_clusters(graph, patterns=("quad", "bend", "drift"))
+graph2 = collapse_selected_clusters(graph, patterns=("quad", "bend", "drift", "branch"))
 graph2.write_raw("graph_autodiff_collapsed.dot")
 graph2.write_png("graph_autodiff_collapsed.png")

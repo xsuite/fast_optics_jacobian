@@ -1,0 +1,73 @@
+local observed in MAD.element.flags
+local beam, sequence, mtable, twiss, match in MAD
+
+local mad_func, msg = loadfile('mng_collider_file.mad', nil, MADX)
+assert(mad_func, msg)()
+
+local lhcb1 = MADX.seq
+
+lhcb1.beam = beam {particle='proton', energy=7000}
+
+lhcb1:select(observed, {list = {'s.ds.l8.b1', 'ip1.l1', 'ip1', 'ip8'}})
+local twpart, mf = twiss {sequence = lhcb1, observe = 1, savemap = true, info = 2}
+local X0 = twpart['s.ds.l8.b1'].__map
+X0.status = "Aset" ! Bug corrected in next version
+
+
+local tws = twiss {sequence = lhcb1, X0 = X0, range = 's.ds.l8.b1/ip1', info = 2}
+local mu1_to_ip1 = tws['ip1.l1'].mu1
+local mu2_to_ip1 = tws['ip1.l1'].mu2
+
+match {
+    command := twiss {sequence = lhcb1, X0=X0, range = 's.ds.l8.b1/ip1'},
+    variables = { rtol=1e-6,
+        { var='MADX.kq6_l8b1', name='kq6_l8b1'},
+        { var='MADX.kq7_l8b1', name='kq7_l8b1'},
+        { var='MADX.kq8_l8b1', name='kq8_l8b1'},
+        { var='MADX.kq9_l8b1', name='kq9_l8b1'},
+        { var='MADX.kq10_l8b1', name='kq10_l8b1'},
+        { var='MADX.kqtl11_l8b1', name='kqtl11_l8b1'},
+        { var='MADX.kqt12_l8b1', name='kqt12_l8b1'},
+        { var='MADX.kqt13_l8b1', name='kqt13_l8b1'},
+        { var='MADX.kq4_l8b1', name='kq4_l8b1'},
+        { var='MADX.kq5_l8b1', name='kq5_l8b1'},
+        { var='MADX.kq4_r8b1', name='kq4_r8b1'},
+        { var='MADX.kq5_r8b1', name='kq5_r8b1'},
+        { var='MADX.kq6_r8b1', name='kq6_r8b1'},
+        { var='MADX.kq7_r8b1', name='kq7_r8b1'},
+        { var='MADX.kq8_r8b1', name='kq8_r8b1'},
+        { var='MADX.kq9_r8b1', name='kq9_r8b1'},
+        { var='MADX.kq10_r8b1', name='kq10_r8b1'},
+        { var='MADX.kqtl11_r8b1', name='kqtl11_r8b1'},
+        { var='MADX.kqt12_r8b1', name='kqt12_r8b1'},
+        { var='MADX.kqt13_r8b1', name='kqt13_r8b1'}
+    },
+    equalities = { tol=1e-4,
+        { expr=\t -> t.ip8.beta11-0.15, kind='beta', name='betx_ip8'},
+        { expr=\t -> t.ip8.beta22-0.15, kind='beta', name='bety_ip8'},
+        { expr=\t -> t.ip8.alfa11, kind='alfa', name='alfx_ip8'},
+        { expr=\t -> t.ip8.alfa22, kind='alfa', name='alfy_ip8'},
+        { expr=\t -> t.ip8.dx, kind='dx', name='dx_ip8'},
+        { expr=\t -> t.ip8.dpx, kind='dpx', name='dy_ip8'},
+        { expr=\t -> t.ip1.beta11-0.15, kind='beta', name='betx_ip1'},
+        { expr=\t -> t.ip1.beta22-0.1, kind='beta', name='bety_ip1'},
+        { expr=\t -> t.ip1.alfa11, kind='alfa', name='alfx_ip1'},
+        { expr=\t -> t.ip1.alfa22, kind='alfa', name='alfy_ip1'},
+        { expr=\t -> t.ip1.dx, kind='dx', name='dx_ip1'},
+        { expr=\t -> t.ip1.dpx, kind='dpx', name='dy_ip1'},
+        { expr=\t -> t["ip1.l1"].mu1 - mu1_to_ip1, kind='mu', name='mux_ip1'},
+        { expr=\t -> t["ip1.l1"].mu2 - mu2_to_ip1, kind='mu', name='muy_ip1'},
+    },
+    weights = {
+        beta = 1.,
+        alfa = 1.,
+        dx = 1.,
+        dpx = 1.,
+        mu = 1.,
+        qx = 1.,
+        qy = 1.,
+    },
+    objective = { broyden=false },
+    info = 7,
+    maxcall = 1000,
+}

@@ -1,6 +1,8 @@
 *.png
 *.log
 *.mad
+*.json
+*.dot
 *.pdf
 .vscode/
 __pycache__/

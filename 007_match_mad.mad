@@ -9,12 +9,12 @@ local lhcb1 = MADX.lhcb1
 lhcb1.beam = beam {particle='proton', energy=7000}
 
 lhcb1:select(observed, {list = {'s.ds.l8.b1', 'ip1.l1', 'ip1', 'ip8'}})
-local twpart, mf = twiss {sequence = lhcb1, observe = 1, savemap = true, info = 2}
+local twpart, mf = twiss {sequence = lhcb1, observe = 1, savemap = true, info = 1}
 local X0 = twpart['s.ds.l8.b1'].__map
 X0.status = "Aset" ! Bug corrected in next version
 
 
-local tws = twiss {sequence = lhcb1, X0 = X0, range = 's.ds.l8.b1/ip1', info = 2}
+local tws = twiss {sequence = lhcb1, X0 = X0, range = 's.ds.l8.b1/ip1', info = 1}
 local mu1_to_ip1 = tws['ip1.l1'].mu1
 local mu2_to_ip1 = tws['ip1.l1'].mu2
 
@@ -69,7 +69,8 @@ match {
         qx = 1.,
         qy = 1.,
     },
-    objective = { broyden=false },
-    info = 7,
+    objective = { broyden=true },
+    info = 1,
+    debug = 4,
     maxcall = 1000,
 }

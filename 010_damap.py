@@ -52,10 +52,10 @@ mng.send(r'''
     X0.x = 1e-3
     MADX.kf = MADX.kf + X0.kf
     MADX.kd = MADX.kd + X0.kd
-    local trk, mflw = MAD.track{sequence=MADX.myseq, X0=X0, savemap=true}
+    trk, mflw = MAD.track{sequence=MADX.myseq, X0=X0, savemap=true}
     trk:print({'name', 's', 'x', 'px', 'y', 'py', 't', 'pt'})
 
-    mflw[1]:print() -- map at the end
+    ! mflw[1]:print() -- map at the end
     ! py:send(mflw[1].x) -- send map back to python
     ! print(mflw[1].__td.nn) -- Monomial length
     ! print(mflw[1].__td.nv) -- Number of Variables
@@ -67,17 +67,6 @@ mng.send(r'''
     for i, v in ipairs(mflw[1].__vn) do
         py:send(mflw[1][v]) -- Send TPSAs over in order
     end
-
-    ! trk['MM'].__map:print() -- map at MM
-
-    ! local nf = MAD.gphys.normal(mflw[1])
-    ! nf.a:print() -- normal form at the end
-    ! local B0 = MAD.gphys.map2bet(nf.a:real())
-    ! print(B0.beta11)
-
-    ! local a_re = nf.a:real()
-    ! print(a_re.x:get("100000")^2 + a_re.x:get("010000")^2)
-    ! print(a_re.x:get("1000001")^2)
 ''')
 
 tpsas = {k: mng.recv() for k in mng.recv()} # Create dict out of TPSAs
@@ -113,3 +102,26 @@ tpsa = TPSA(tpsas, num_variables=6) # Create TPSA object out of madng-dict
 
 coeffs = tpsa.get_coeff('x', np.array([[1,0,0,0,0,0,0,0], [0,1,0,0,0,0,0,0], [2,0,0,0,0,0,1,0]]))
 
+
+mng.send(f"""
+    ! trk['MM'].__map:print() -- map at MM
+
+    local nf = MAD.gphys.normal(mflw[1]) -- Compute normal form
+
+    local clearkeys in MAD.utility
+    py:send(clearkeys(nf.a.__vn), true) -- Send keys as a list (ordered)
+
+    for i, v in ipairs(nf.a.__vn) do
+        py:send(nf.a[v]) -- Send TPSAs (Normal Forms) over in order
+    end
+
+    ! local B0 = MAD.gphys.map2bet(nf.a:real())
+    ! print(B0.beta11)
+
+    local a_re = nf.a:real()
+    print(a_re.x:get("100000")^2 + a_re.x:get("010000")^2)
+    print(a_re.x:get("1000001")^2)
+""")
+
+nfs = {k: mng.recv() for k in mng.recv()} # Create dict out of TPSAs
+nf_tpsa = TPSA(nfs, num_variables=6) # Create TPSA object out of madng-dict

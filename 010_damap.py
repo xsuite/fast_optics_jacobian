@@ -108,6 +108,17 @@ mng.send(f"""
 
     local nf = MAD.gphys.normal(mflw[1]) -- Compute normal form
 
+    print(MAD.tostring(nf))
+    -- damaps --
+    -- a: normalizing map (output)
+    -- a0: map to go to fix point
+    -- a1: map to go to CS basis
+    -- a2: second order map
+    -- m_n: normalized map
+    -- m0: Backup one-turn map
+    -- c: map to go to phasor basis
+    -- ci: phasor inverse map
+
     local clearkeys in MAD.utility
     py:send(clearkeys(nf.a.__vn), true) -- Send keys as a list (ordered)
 

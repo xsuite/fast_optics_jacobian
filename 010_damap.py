@@ -83,17 +83,17 @@ mng.send(r'''
 tpsas = {k: mng.recv() for k in mng.recv()} # Create dict out of TPSAs
 
 class TPSA:
-    def __init__(self, tpsa_dict: dict, num_variables=None):
+    def __init__(self, tpsa_dict: dict, num_variables: int = None):
         self.tpsa_dict = tpsa_dict
-        self.monom_length = len(tpsas)
-        self.keys = list(tpsas.keys())
-        self.order = max(np.sum(tpsas[k][0], axis=1).max() for k in tpsas)
+        self.monom_length = len(tpsa_dict)
+        self.keys = list(tpsa_dict.keys())
+        self.order = max(np.sum(tpsa_dict[k][0], axis=1).max() for k in tpsa_dict)
         if num_variables is None:
             self.num_variables = sum(1 for k in self.keys if len(self.tpsa_dict[k][1]) > 1)
         else:
             self.num_variables = num_variables
 
-    def get_coeff(self, key: str, derived_var_arr: np.ndarray = None):
+    def get_coeff(self, key: str, derived_var_arr: np.ndarray = None) -> float | list[float]:
         assert key in self.keys
         if derived_var_arr is None:
             # return all

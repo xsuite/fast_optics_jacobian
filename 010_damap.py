@@ -93,12 +93,10 @@ class TPSA:
         else:
             self.num_variables = num_variables
 
-    def get_coeff(self, key: str, derived_var_arr: np.ndarray = None) -> float | list[float]:
-        assert key in self.keys
-        if derived_var_arr is None:
-            # return all
-            pass
-        elif derived_var_arr.ndim == 1:
+    def get_coeff(self, key: str, derived_var_arr: np.ndarray) -> float | list[float]:
+        assert key in self.keys, f"Key {key} not in TPSA dict"
+
+        if derived_var_arr.ndim == 1:
             coeff_index = np.where(np.all(derived_var_arr == self.tpsa_dict[key][0], axis=1))[0]
             if coeff_index.size == 0:
                 print(f"WARNING: No coefficient found for key {key} with monomial {derived_var_arr} not found.")

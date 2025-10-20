@@ -36,10 +36,8 @@ class TPSA:
         -----------
         key: str
             The key in the TPSA dict to evaluate.
-        var_values: np.ndarray
-            A 1D array of variable values at which to evaluate the Taylor expansion.
-        init_values: np.ndarray
-            A 1D array of initial variable values (the expansion point).
+        delta: np.ndarray
+            The difference between initial and perturbed coordinates to evaluate the Taylor expansion at.
 
         Returns:
         --------

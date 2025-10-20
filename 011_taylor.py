@@ -33,9 +33,9 @@ elems = [
     env.new(names[1], xt.Quadrupole, length=1, k1='kk'),
     env.new(names[2], xt.Sextupole, length=1, k2='kk'),
     env.new(names[3], xt.Octupole, length=1, k3='kk'),
-    env.new(names[4], xt.Quadrupole, length=1, k1='kk', k1s='kks'),
-    env.new(names[5], xt.Sextupole, length=1, k2='kk', k2s='kks'),
-    env.new(names[6], xt.Octupole, length=1, k3='kk', k3s='kks'),
+    env.new(names[4], xt.Quadrupole, length=1, k1='kk', k1s='kks', num_multipole_kicks=8),
+    env.new(names[5], xt.Sextupole, length=1, k2='kk', k2s='kks', num_multipole_kicks=8),
+    env.new(names[6], xt.Octupole, length=1, k3='kk', k3s='kks', num_multipole_kicks=8),
 ]
 
 start_elem = env.new('start', xt.Marker)

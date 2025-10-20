@@ -2,8 +2,6 @@ import xtrack as xt
 import numpy as np
 from tpsa_util import TPSA
 
-# Create line with only one quadrupole of length 1
-
 def dp2pt(dp, beta0):
     """Convert relative momentum deviation dp/p to transverse momentum pt/p.
 

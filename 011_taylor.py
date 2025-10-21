@@ -106,22 +106,22 @@ for i in range(len(names)):
 
     tpsa = TPSA(tpsas, num_variables=6) # Create TPSA object out of madng-dict
 
-    line.track(particles)
+    # line.track(particles)
 
     perturbed_coord = np.array([init_coord[0] * 0.9, init_coord[1] * 0.9, init_coord[2] * 1.1, init_coord[3] * 1.1, init_coord[4] * 1, init_coord[5] * 1])
     perturbed_param_vec = np.concatenate((perturbed_coord, [env['kk'], env['kks']]))
 
 
     delta = perturbed_param_vec - param_vec
-    x_pert = tpsa.get_taylor_expansion_all(delta)
+    particles_pert = tpsa.get_taylor_expansion_all(delta)
 
     particles = line.build_particles(x=perturbed_coord[0], px=perturbed_coord[1], y=perturbed_coord[2],
-                                    py=perturbed_coord[3], zeta=perturbed_coord[4] * beta0, delta=perturbed_coord[5])
+                                     py=perturbed_coord[3], zeta=perturbed_coord[4] * beta0, delta=perturbed_coord[5])
     line.track(particles)
     perturbed_particles_arr = np.array([particles.x[0], particles.px[0], particles.y[0],
-                                    particles.py[0], particles.zeta[0], particles.delta[0]])
+                                        particles.py[0], particles.zeta[0], particles.delta[0]])
 
     print("Initial Particle: ", init_coord)
     print("Perturbed Particle: ", perturbed_coord)
 
-    print(f"Difference between TPSA and Xsuite Track: {x_pert - perturbed_particles_arr}\n")
+    print(f"Difference between TPSA and Xsuite Track: {particles_pert - perturbed_particles_arr}\n")

@@ -191,38 +191,38 @@ n = delta_delta_coeff - (delta_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff
 dm_dkq6 = x_kq6_delta_coeff - (x_kq6_zeta_coeff * zeta_delta_coeff - x_zeta_coeff * zeta_kq6_delta_coeff)/zeta_zeta_coeff**2
 dn_dkq6 = delta_kq6_delta_coeff - (delta_kq6_zeta_coeff * zeta_delta_coeff - delta_zeta_coeff * zeta_kq6_delta_coeff)/zeta_zeta_coeff**2
 
+m_pert = x_pert_delta_coeff - (x_pert_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff
+n_pert = delta_delta_coeff - (delta_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff
+
 print(tabulate([
     ['betx', tw0.betx[-1], x_x_coeff**2 + x_px_coeff**2, "---"],
     ['dbetx/dkq6', (tw_pert.betx[-1] - tw0.betx[-1]) / dk1,
-        ( (x_pert_x_coeff**2 + x_pert_px_coeff**2) - (x_x_coeff**2 + x_px_coeff**2) ) / dk1,
+        ((x_pert_x_coeff**2 + x_pert_px_coeff**2) -
+         (x_x_coeff**2 + x_px_coeff**2)) / dk1,
         2 * (x_x_coeff * x_x_kq6_coeff + x_px_coeff * x_px_kq6_coeff)],
     ['bety', tw0.bety[-1], y_y_coeff**2 + y_py_coeff**2, "---"],
     ['dbety/dkq6', (tw_pert.bety[-1] - tw0.bety[-1]) / dk1,
-        ( (y_pert_y_coeff**2 + y_pert_py_coeff**2) - (y_y_coeff**2 + y_py_coeff**2) ) / dk1,
+        ((y_pert_y_coeff**2 + y_pert_py_coeff**2) -
+         (y_y_coeff**2 + y_py_coeff**2)) / dk1,
         2 * (y_y_coeff * y_y_kq6_coeff + y_py_coeff * y_py_kq6_coeff)],
-    ['alfx', tw0.alfx[-1], - x_x_coeff * px_x_coeff - x_px_coeff * px_px_coeff, "---"],
+    ['alfx', tw0.alfx[-1], - x_x_coeff *
+        px_x_coeff - x_px_coeff * px_px_coeff, "---"],
     ['dalfx/dkq6', (tw_pert.alfx[-1] - tw0.alfx[-1]) / dk1,
-        - ( (x_pert_x_coeff * px_pert_x_coeff + x_pert_px_coeff * px_pert_px_coeff)
-            - (x_x_coeff * px_x_coeff + x_px_coeff * px_px_coeff) ) / dk1,
+        - ((x_pert_x_coeff * px_pert_x_coeff + x_pert_px_coeff * px_pert_px_coeff)
+            - (x_x_coeff * px_x_coeff + x_px_coeff * px_px_coeff)) / dk1,
         - (x_x_kq6_coeff * px_x_coeff + x_x_coeff * px_x_kq6_coeff
             + x_px_kq6_coeff * px_px_coeff + x_px_coeff * px_px_kq6_coeff)],
-    ['alfy', tw0.alfy[-1], - y_y_coeff * py_y_coeff - y_py_coeff * py_py_coeff, "---"],
-    ['dalfy/dkq6', (tw_pert.alfy[-1] - tw0.alfy[-1]) / dk1,
-        - ( (y_pert_y_coeff * py_pert_y_coeff + y_pert_py_coeff * py_pert_py_coeff)
-            - (y_y_coeff * py_y_coeff + y_py_coeff * py_py_coeff) ) / dk1,
+    ['alfy', tw0.alfy[-1], - y_y_coeff *
+        py_y_coeff - y_py_coeff * py_py_coeff, "---"],
+    ['dalfy/dkq6',
+        (tw_pert.alfy[-1] - tw0.alfy[-1]) / dk1,
+        - ((y_pert_y_coeff * py_pert_y_coeff + y_pert_py_coeff * py_pert_py_coeff)
+            - (y_y_coeff * py_y_coeff + y_py_coeff * py_py_coeff)) / dk1,
         - (y_y_kq6_coeff * py_y_coeff + y_y_coeff * py_y_kq6_coeff
             + y_py_kq6_coeff * py_py_coeff + y_py_coeff * py_py_kq6_coeff)],
     ['dx', tw0.dx[-1], m * n**(-1), "---"],
-    ['ddx/dkq6', (tw_pert.dx[-1] - tw0.dx[-1]) / dk1,
-        ( ( (x_pert_delta_coeff - (x_pert_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff) *
-            (delta_delta_coeff - (delta_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff)**(-1) )
-          - (  m * n**(-1) ) ) / dk1,
-            (dm_dkq6 * n - m * dn_dkq6) / n**2],
+    ['ddx/dkq6',
+        (tw_pert.dx[-1] - tw0.dx[-1]) / dk1,
+        ((m_pert * n_pert ** (-1)) - (m * n**(-1))) / dk1,
+        (dm_dkq6 * n - m * dn_dkq6) / n**2],
 ], tablefmt="fancy_grid", headers=["Parameter", "Xsuite (Twiss/FD)", "TPSA (FD)", "TPSA Deriv"]))
-
-
-# In [184]: (tpsa_new.get_coeff('x', x_) - tpsa_old.get_coeff('x', x_)) / 1e-5
-# Out[184]: (0.5892116446915007+0j)
-
-# In [185]: tpsa_old.get_coeff('x', x_kq6)
-# Out[185]: (0.5867461359705408+1.0397674257838929e-44j)

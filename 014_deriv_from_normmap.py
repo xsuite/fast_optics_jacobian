@@ -135,76 +135,6 @@ tpsa_pert = TPSA(tpsas_pert, num_variables=6)
 
 line['kq6.l8b1'] -= dk1
 
-x_ = np.array([1,0,0,0,0,0,0,0])
-x_kq6 = np.array([1,0,0,0,0,0,1,0])
-px_ = np.array([0,1,0,0,0,0,0,0])
-px_kq6 = np.array([0,1,0,0,0,0,1,0])
-y_ = np.array([0,0,1,0,0,0,0,0])
-y_kq6 = np.array([0,0,1,0,0,0,1,0])
-py_ = np.array([0,0,0,1,0,0,0,0])
-py_kq6 = np.array([0,0,0,1,0,0,1,0])
-zeta_ = np.array([0,0,0,0,1,0,0,0])
-delta_ = np.array([0,0,0,0,0,1,0,0])
-zeta_kq6 = np.array([0,0,0,0,1,0,1,0])
-delta_kq6 = np.array([0,0,0,0,0,1,1,0])
-
-x_x_coeff = tpsa.get_coeff('x', x_)
-x_x_kq6_coeff = tpsa.get_coeff('x', x_kq6)
-x_pert_x_coeff = tpsa_pert.get_coeff('x', x_)
-x_pert_x_kq6_coeff = tpsa_pert.get_coeff('x', x_kq6)
-x_px_coeff = tpsa.get_coeff('x', px_)
-x_px_kq6_coeff = tpsa.get_coeff('x', px_kq6)
-x_pert_px_coeff = tpsa_pert.get_coeff('x', px_)
-x_pert_px_kq6_coeff = tpsa_pert.get_coeff('x', px_kq6)
-y_y_coeff = tpsa.get_coeff('y', y_)
-y_py_coeff = tpsa.get_coeff('y', py_)
-y_y_kq6_coeff = tpsa.get_coeff('y', y_kq6)
-y_py_kq6_coeff = tpsa.get_coeff('y', py_kq6)
-y_pert_y_coeff = tpsa_pert.get_coeff('y', y_)
-y_pert_py_coeff = tpsa_pert.get_coeff('y', py_)
-y_pert_y_kq6_coeff = tpsa_pert.get_coeff('y', y_kq6)
-y_pert_py_kq6_coeff = tpsa_pert.get_coeff('y', py_kq6)
-px_x_coeff = tpsa.get_coeff('px', x_)
-px_px_coeff = tpsa.get_coeff('px', px_)
-px_x_kq6_coeff = tpsa.get_coeff('px', x_kq6)
-px_px_kq6_coeff = tpsa.get_coeff('px', px_kq6)
-px_pert_x_coeff = tpsa_pert.get_coeff('px', x_)
-px_pert_px_coeff = tpsa_pert.get_coeff('px', px_)
-px_pert_x_kq6_coeff = tpsa_pert.get_coeff('px', x_kq6)
-px_pert_px_kq6_coeff = tpsa_pert.get_coeff('px', px_kq6)
-py_y_coeff = tpsa.get_coeff('py', y_)
-py_py_coeff = tpsa.get_coeff('py', py_)
-py_y_kq6_coeff = tpsa.get_coeff('py', y_kq6)
-py_py_kq6_coeff = tpsa.get_coeff('py', py_kq6)
-py_pert_y_coeff = tpsa_pert.get_coeff('py', y_)
-py_pert_py_coeff = tpsa_pert.get_coeff('py', py_)
-py_pert_y_kq6_coeff = tpsa_pert.get_coeff('py', y_kq6)
-py_pert_py_kq6_coeff = tpsa_pert.get_coeff('py', py_kq6)
-x_zeta_coeff = tpsa.get_coeff('x', zeta_)
-x_delta_coeff = tpsa.get_coeff('x', delta_)
-zeta_zeta_coeff = tpsa.get_coeff('t', zeta_)
-delta_delta_coeff = tpsa.get_coeff('pt', delta_)
-zeta_delta_coeff = tpsa.get_coeff('t', delta_)
-delta_zeta_coeff = tpsa.get_coeff('pt', zeta_)
-
-x_kq6_delta_coeff = tpsa_pert.get_coeff('x', delta_kq6)
-x_kq6_zeta_coeff = tpsa_pert.get_coeff('x', zeta_kq6)
-zeta_kq6_delta_coeff = tpsa_pert.get_coeff('t', delta_kq6)
-delta_kq6_delta_coeff = tpsa_pert.get_coeff('pt', delta_kq6)
-delta_kq6_zeta_coeff = tpsa_pert.get_coeff('pt', zeta_kq6)
-
-
-x_pert_delta_coeff = tpsa_pert.get_coeff('x', delta_)
-x_pert_zeta_coeff = tpsa_pert.get_coeff('x', zeta_)
-
-m = x_delta_coeff - (x_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff
-n = delta_delta_coeff - (delta_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff
-dm_dkq6 = x_kq6_delta_coeff - (x_kq6_zeta_coeff * zeta_delta_coeff - x_zeta_coeff * zeta_kq6_delta_coeff)/zeta_zeta_coeff**2
-dn_dkq6 = delta_kq6_delta_coeff - (delta_kq6_zeta_coeff * zeta_delta_coeff - delta_zeta_coeff * zeta_kq6_delta_coeff)/zeta_zeta_coeff**2
-
-m_pert = x_pert_delta_coeff - (x_pert_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff
-n_pert = delta_delta_coeff - (delta_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff
-
 obsv = 'ip1'
 
 jac = opt._err.get_jacobian(opt._err._get_x())
@@ -287,36 +217,115 @@ mng_str_update = r'''
 
 mng.send(mng_str_update)
 
-tpsas_3 = {k: mng.recv() for k in mng.recv()} # Create dict out of TPSAs
-tpsa_3 = TPSA(tpsas_3, num_variables=6) # Create TPSA object out of madng-dict
+tpsas_range = {k: mng.recv() for k in mng.recv()} # Create dict out of TPSAs
+tpsa_range = TPSA(tpsas_range, num_variables=6) # Create TPSA object out of madng-dict
 
-x_x_coeff_3 = tpsa_3.get_coeff('x', x_)
-x_x_kq6_coeff_3 = tpsa_3.get_coeff('x', x_kq6)
-x_px_coeff_3 = tpsa_3.get_coeff('x', px_)
-x_px_kq6_coeff_3 = tpsa_3.get_coeff('x', px_kq6)
-px_x_coeff_3 = tpsa_3.get_coeff('px', x_)
-px_px_coeff_3 = tpsa_3.get_coeff('px', px_)
-px_x_kq6_coeff_3 = tpsa_3.get_coeff('px', x_kq6)
-px_px_kq6_coeff_3 = tpsa_3.get_coeff('px', px_kq6)
-y_y_coeff_3 = tpsa_3.get_coeff('y', y_)
-y_y_kq6_coeff_3 = tpsa_3.get_coeff('y', y_kq6)
-y_py_coeff_3 = tpsa_3.get_coeff('y', py_)
-y_py_kq6_coeff_3 = tpsa_3.get_coeff('y', py_kq6)
-py_y_coeff_3 = tpsa_3.get_coeff('py', y_)
-py_py_coeff_3 = tpsa_3.get_coeff('py', py_)
-py_y_kq6_coeff_3 = tpsa_3.get_coeff('py', y_kq6)
-py_py_kq6_coeff_3 = tpsa_3.get_coeff('py', py_kq6)
-x_zeta_coeff_3 = tpsa_3.get_coeff('x', zeta_)
-x_delta_coeff_3 = tpsa_3.get_coeff('x', delta_)
-zeta_zeta_coeff_3 = tpsa_3.get_coeff('t', zeta_)
-delta_delta_coeff_3 = tpsa_3.get_coeff('pt', delta_)
-zeta_delta_coeff_3 = tpsa_3.get_coeff('t', delta_)
-delta_zeta_coeff_3 = tpsa_3.get_coeff('pt', zeta_)
-x_kq6_delta_coeff_3 = tpsa_3.get_coeff('x', delta_kq6)
-x_kq6_zeta_coeff_3 = tpsa_3.get_coeff('x', zeta_kq6)
-zeta_kq6_delta_coeff_3 = tpsa_3.get_coeff('t', delta_kq6)
-delta_kq6_delta_coeff_3 = tpsa_3.get_coeff('pt', delta_kq6)
-delta_kq6_zeta_coeff_3 = tpsa_3.get_coeff('pt', zeta_kq6)
+# Base vectors
+vars_base = {
+    "x": np.array([1,0,0,0,0,0,0,0]),
+    "px": np.array([0,1,0,0,0,0,0,0]),
+    "y": np.array([0,0,1,0,0,0,0,0]),
+    "py": np.array([0,0,0,1,0,0,0,0]),
+    "zeta": np.array([0,0,0,0,1,0,0,0]),
+    "delta": np.array([0,0,0,0,0,1,0,0]),
+}
+
+# kq6 perturbations
+vars_kq6 = {
+    "x": np.array([1,0,0,0,0,0,1,0]),
+    "px": np.array([0,1,0,0,0,0,1,0]),
+    "y": np.array([0,0,1,0,0,0,1,0]),
+    "py": np.array([0,0,0,1,0,0,1,0]),
+    "zeta": np.array([0,0,0,0,1,0,1,0]),
+    "delta": np.array([0,0,0,0,0,1,1,0]),
+}
+
+tpsa_objs = {
+    "ref": tpsa,
+    "pert": tpsa_pert,
+    "range": tpsa_range
+}
+
+x_x_coeff = tpsa.get_coeff('x', vars_base['x'])
+x_x_kq6_coeff = tpsa.get_coeff('x', vars_kq6['x'])
+x_pert_x_coeff = tpsa_pert.get_coeff('x', vars_base['x'])
+x_px_coeff = tpsa.get_coeff('x', vars_base['px'])
+x_px_kq6_coeff = tpsa.get_coeff('x', vars_kq6['px'])
+x_pert_px_coeff = tpsa_pert.get_coeff('x', vars_base['px'])
+y_y_coeff = tpsa.get_coeff('y', vars_base['y'])
+y_py_coeff = tpsa.get_coeff('y', vars_base['py'])
+y_y_kq6_coeff = tpsa.get_coeff('y', vars_kq6['y'])
+y_py_kq6_coeff = tpsa.get_coeff('y', vars_kq6['py'])
+y_pert_y_coeff = tpsa_pert.get_coeff('y', vars_base['y'])
+y_pert_py_coeff = tpsa_pert.get_coeff('y', vars_base['py'])
+px_x_coeff = tpsa.get_coeff('px', vars_base['x'])
+px_px_coeff = tpsa.get_coeff('px', vars_base['px'])
+px_x_kq6_coeff = tpsa.get_coeff('px', vars_kq6['x'])
+px_px_kq6_coeff = tpsa.get_coeff('px', vars_kq6['px'])
+px_pert_x_coeff = tpsa_pert.get_coeff('px', vars_base['x'])
+px_pert_px_coeff = tpsa_pert.get_coeff('px', vars_base['px'])
+py_y_coeff = tpsa.get_coeff('py', vars_base['y'])
+py_py_coeff = tpsa.get_coeff('py', vars_base['py'])
+py_y_kq6_coeff = tpsa.get_coeff('py', vars_kq6['y'])
+py_py_kq6_coeff = tpsa.get_coeff('py', vars_kq6['py'])
+py_pert_y_coeff = tpsa_pert.get_coeff('py', vars_base['y'])
+py_pert_py_coeff = tpsa_pert.get_coeff('py', vars_base['py'])
+x_zeta_coeff = tpsa.get_coeff('x', vars_base['zeta'])
+x_delta_coeff = tpsa.get_coeff('x', vars_base['delta'])
+zeta_zeta_coeff = tpsa.get_coeff('t', vars_base['zeta'])
+delta_delta_coeff = tpsa.get_coeff('pt', vars_base['delta'])
+zeta_delta_coeff = tpsa.get_coeff('t', vars_base['delta'])
+delta_zeta_coeff = tpsa.get_coeff('pt', vars_base['zeta'])
+
+x_kq6_delta_coeff = tpsa_pert.get_coeff('x', vars_kq6['delta'])
+x_kq6_zeta_coeff = tpsa_pert.get_coeff('x', vars_kq6['zeta'])
+zeta_kq6_delta_coeff = tpsa_pert.get_coeff('t', vars_kq6['delta'])
+delta_kq6_delta_coeff = tpsa_pert.get_coeff('pt', vars_kq6['delta'])
+delta_kq6_zeta_coeff = tpsa_pert.get_coeff('pt', vars_kq6['zeta'])
+
+
+x_pert_delta_coeff = tpsa_pert.get_coeff('x', vars_base['delta'])
+x_pert_zeta_coeff = tpsa_pert.get_coeff('x', vars_base['zeta'])
+
+m = x_delta_coeff - (x_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff
+n = delta_delta_coeff - (delta_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff
+dm_dkq6 = x_kq6_delta_coeff - (x_kq6_zeta_coeff * zeta_delta_coeff - x_zeta_coeff * zeta_kq6_delta_coeff)/zeta_zeta_coeff**2
+dn_dkq6 = delta_kq6_delta_coeff - (delta_kq6_zeta_coeff * zeta_delta_coeff - delta_zeta_coeff * zeta_kq6_delta_coeff)/zeta_zeta_coeff**2
+
+m_pert = x_pert_delta_coeff - (x_pert_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff
+n_pert = delta_delta_coeff - (delta_zeta_coeff * zeta_delta_coeff)/zeta_zeta_coeff
+
+
+
+tpsa_objs['range'] = tpsa_range
+
+x_x_coeff_3 = tpsa_range.get_coeff('x', vars_base['x'])
+x_x_kq6_coeff_3 = tpsa_range.get_coeff('x', vars_kq6['x'])
+x_px_coeff_3 = tpsa_range.get_coeff('x', vars_base['px'])
+x_px_kq6_coeff_3 = tpsa_range.get_coeff('x', vars_kq6['px'])
+px_x_coeff_3 = tpsa_range.get_coeff('px', vars_base['x'])
+px_px_coeff_3 = tpsa_range.get_coeff('px', vars_base['px'])
+px_x_kq6_coeff_3 = tpsa_range.get_coeff('px', vars_kq6['x'])
+px_px_kq6_coeff_3 = tpsa_range.get_coeff('px', vars_kq6['px'])
+y_y_coeff_3 = tpsa_range.get_coeff('y', vars_base['y'])
+y_y_kq6_coeff_3 = tpsa_range.get_coeff('y', vars_kq6['y'])
+y_py_coeff_3 = tpsa_range.get_coeff('y', vars_base['py'])
+y_py_kq6_coeff_3 = tpsa_range.get_coeff('y', vars_kq6['py'])
+py_y_coeff_3 = tpsa_range.get_coeff('py', vars_base['y'])
+py_py_coeff_3 = tpsa_range.get_coeff('py', vars_base['py'])
+py_y_kq6_coeff_3 = tpsa_range.get_coeff('py', vars_kq6['y'])
+py_py_kq6_coeff_3 = tpsa_range.get_coeff('py', vars_kq6['py'])
+x_zeta_coeff_3 = tpsa_range.get_coeff('x', vars_base['zeta'])
+x_delta_coeff_3 = tpsa_range.get_coeff('x', vars_base['delta'])
+zeta_zeta_coeff_3 = tpsa_range.get_coeff('t', vars_base['zeta'])
+delta_delta_coeff_3 = tpsa_range.get_coeff('pt', vars_base['delta'])
+zeta_delta_coeff_3 = tpsa_range.get_coeff('t', vars_base['delta'])
+delta_zeta_coeff_3 = tpsa_range.get_coeff('pt', vars_base['zeta'])
+x_kq6_delta_coeff_3 = tpsa_range.get_coeff('x', vars_kq6['delta'])
+x_kq6_zeta_coeff_3 = tpsa_range.get_coeff('x', vars_kq6['zeta'])
+zeta_kq6_delta_coeff_3 = tpsa_range.get_coeff('t', vars_kq6['delta'])
+delta_kq6_delta_coeff_3 = tpsa_range.get_coeff('pt', vars_kq6['delta'])
+delta_kq6_zeta_coeff_3 = tpsa_range.get_coeff('pt', vars_kq6['zeta'])
 
 m_3 = x_delta_coeff_3 - (x_zeta_coeff_3 * zeta_delta_coeff_3)/zeta_zeta_coeff_3
 n_3 = delta_delta_coeff_3 - (delta_zeta_coeff_3 * zeta_delta_coeff_3)/zeta_zeta_coeff_3

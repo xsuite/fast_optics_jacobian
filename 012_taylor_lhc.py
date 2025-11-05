@@ -99,6 +99,10 @@ tpsa_map_element = TPSAMap(
     machine_vals=np.array([]),
 )
 
+particles = line.build_particles(x=perturbed_coord[0], px=perturbed_coord[1], y=perturbed_coord[2],
+                                        py=perturbed_coord[3], zeta=perturbed_coord[4] * beta0, delta=perturbed_coord[5])
+tpsa_map_element.track(particles)
+
 from pyprof import timing
 
 n_times = 10

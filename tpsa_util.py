@@ -82,3 +82,189 @@ class TPSA:
         assert delta.size == self.monom_length, f"delta must have size {self.monom_length}"
 
         return np.array([self.get_taylor_expansion_key(k, delta) for k in self.keys[:self.num_variables]])
+
+    def calc_beta(self, dim: str) -> float:
+        """
+        Calculate the beta function from the TPSA representation.
+
+        Parameters:
+        -----------
+        dim: str
+            Dimension to calculate beta for ('x' or 'y').
+
+        Returns:
+        --------
+        float
+            The calculated beta function value.
+        """
+        assert dim in ['x', 'y'], "Dimension must be 'x' or 'y'"
+
+        dim_ind = 2 if dim == 'y' else 0
+
+        x_x_coeff = self.get_coeff(dim, _arr_from_pos([dim_ind], self.monom_length))
+        x_px_coeff = self.get_coeff(dim, _arr_from_pos([dim_ind + 1], self.monom_length))
+
+        return x_x_coeff**2 + x_px_coeff**2
+
+    def calc_alpha(self, dim: str) -> float:
+        """
+        Calculate the alpha function from the TPSA representation.
+
+        Parameters:
+        -----------
+        dim: str
+            Dimension to calculate alpha for ('x' or 'y').
+
+        Returns:
+        --------
+        float
+            The calculated alpha function value.
+        """
+        assert dim in ['x', 'y'], "Dimension must be 'x' or 'y'"
+
+        dim_ind = 2 if dim == 'y' else 0
+        pdim = 'p' + dim
+
+        x_x_coeff = self.get_coeff(dim, _arr_from_pos([dim_ind], self.monom_length))
+        px_x_coeff = self.get_coeff(pdim, _arr_from_pos([dim_ind], self.monom_length))
+        x_px_coeff = self.get_coeff(dim, _arr_from_pos([dim_ind + 1], self.monom_length))
+        px_px_coeff = self.get_coeff(pdim, _arr_from_pos([dim_ind + 1], self.monom_length))
+
+        return - x_x_coeff * px_x_coeff - x_px_coeff * px_px_coeff
+
+    def calc_dispersion(self, dim: str) -> float:
+        """
+        Calculate the dispersion from the TPSA representation.
+
+        Parameters:
+        -----------
+        dim: str
+            Dimension to calculate dispersion for ('x', 'px', 'y' or 'py').
+
+        Returns:
+        --------
+        float
+            The calculated dispersion value.
+        """
+        assert dim in ['x', 'px', 'y', 'py'], "Dimension must be 'x', 'px', 'y' or 'py'"
+
+        x_delta_coeff = self.get_coeff(dim, _arr_from_pos([5], self.monom_length))
+        x_zeta_coeff = self.get_coeff(dim, _arr_from_pos([4], self.monom_length))
+        zeta_delta_coeff = self.get_coeff('t', _arr_from_pos([5], self.monom_length))
+        zeta_zeta_coeff = self.get_coeff('t', _arr_from_pos([4], self.monom_length))
+        delta_delta_coeff = self.get_coeff('pt', _arr_from_pos([5], self.monom_length))
+        delta_zeta_coeff = self.get_coeff('pt', _arr_from_pos([4], self.monom_length))
+
+        m = x_delta_coeff - (x_zeta_coeff * zeta_delta_coeff) / zeta_zeta_coeff
+        n = delta_delta_coeff - (delta_zeta_coeff * zeta_delta_coeff) / zeta_zeta_coeff
+
+        return m / n
+
+    def calc_beta_deriv(self, dim: str, var_index: int) -> float:
+        """
+        Calculate the derivative of the beta function with respect to a variable.
+
+        Parameters:
+        -----------
+        dim: str
+            Dimension to calculate beta derivative for ('x' or 'y').
+        var_index: int
+            Index of the variable to differentiate with respect to.
+
+        Returns:
+        --------
+        float
+            The calculated derivative of the beta function.
+        """
+
+        assert dim in ['x', 'y'], "Dimension must be 'x' or 'y'"
+
+        dim_ind = 2 if dim == 'y' else 0
+
+        x_x_coeff = self.get_coeff(dim, _arr_from_pos([dim_ind], self.monom_length))
+        x_px_coeff = self.get_coeff(dim, _arr_from_pos([dim_ind + 1], self.monom_length))
+
+        x_x_var_coeff = self.get_coeff(dim, _arr_from_pos([dim_ind, var_index], self.monom_length))
+        x_px_var_coeff = self.get_coeff(dim, _arr_from_pos([dim_ind + 1, var_index], self.monom_length))
+
+        return 2 * (x_x_coeff * x_x_var_coeff + x_px_coeff * x_px_var_coeff)
+
+    def calc_alpha_deriv(self, dim: str, var_index: int) -> float:
+        """
+        Calculate the derivative of the alpha function with respect to a variable.
+
+        Parameters:
+        -----------
+        dim: str
+            Dimension to calculate alpha derivative for ('x' or 'y').
+        var_index: int
+            Index of the variable to differentiate with respect to.
+
+        Returns:
+        --------
+        float
+            The calculated derivative of the alpha function.
+        """
+
+        assert dim in ['x', 'y'], "Dimension must be 'x' or 'y'"
+
+        dim_ind = 2 if dim == 'y' else 0
+        pdim = 'p' + dim
+
+        x_x_coeff = self.get_coeff(dim, _arr_from_pos([dim_ind], self.monom_length))
+        px_x_coeff = self.get_coeff(pdim, _arr_from_pos([dim_ind], self.monom_length))
+        x_x_var_coeff = self.get_coeff(dim, _arr_from_pos([dim_ind, var_index], self.monom_length))
+        px_x_var_coeff = self.get_coeff(pdim, _arr_from_pos([dim_ind, var_index], self.monom_length))
+
+        x_px_coeff = self.get_coeff(dim, _arr_from_pos([dim_ind + 1], self.monom_length))
+        px_px_coeff = self.get_coeff(pdim, _arr_from_pos([dim_ind + 1], self.monom_length))
+        x_px_var_coeff = self.get_coeff(dim, _arr_from_pos([dim_ind + 1, var_index], self.monom_length))
+        px_px_var_coeff = self.get_coeff(pdim, _arr_from_pos([dim_ind + 1, var_index], self.monom_length))
+
+        return - (x_x_var_coeff * px_x_coeff + x_x_coeff * px_x_var_coeff
+                  + x_px_var_coeff * px_px_coeff + x_px_coeff * px_px_var_coeff)
+
+    def calc_dispersion_deriv(self, dim: str, var_index: int) -> float:
+        """
+        Calculate the derivative of the dispersion with respect to a variable.
+
+        Parameters:
+        -----------
+        dim: str
+            Dimension to calculate dispersion derivative for ('x', 'px', 'y' or 'py').
+        var_index: int
+            Index of the variable to differentiate with respect to.
+
+        Returns:
+        --------
+        float
+            The calculated derivative of the dispersion.
+        """
+
+        assert dim in ['x', 'px', 'y', 'py'], "Dimension must be 'x', 'px', 'y' or 'py'"
+
+        x_delta_coeff = self.get_coeff(dim, _arr_from_pos([5], self.monom_length))
+        x_zeta_coeff = self.get_coeff(dim, _arr_from_pos([4], self.monom_length))
+        zeta_delta_coeff = self.get_coeff('t', _arr_from_pos([5], self.monom_length))
+        zeta_zeta_coeff = self.get_coeff('t', _arr_from_pos([4], self.monom_length))
+        delta_delta_coeff = self.get_coeff('pt', _arr_from_pos([5], self.monom_length))
+        delta_zeta_coeff = self.get_coeff('pt', _arr_from_pos([4], self.monom_length))
+
+        x_delta_var_coeff = self.get_coeff(dim, _arr_from_pos([5, var_index], self.monom_length))
+        x_zeta_var_coeff = self.get_coeff(dim, _arr_from_pos([4, var_index], self.monom_length))
+        zeta_delta_var_coeff = self.get_coeff('t', _arr_from_pos([5, var_index], self.monom_length))
+        zeta_zeta_var_coeff = self.get_coeff('t', _arr_from_pos([4, var_index], self.monom_length))
+        delta_delta_var_coeff = self.get_coeff('pt', _arr_from_pos([5, var_index], self.monom_length))
+        delta_zeta_var_coeff = self.get_coeff('pt', _arr_from_pos([4, var_index], self.monom_length))
+
+        m = x_delta_coeff - (x_zeta_coeff * zeta_delta_coeff) / zeta_zeta_coeff
+        n = delta_delta_coeff - (delta_zeta_coeff * zeta_delta_coeff) / zeta_zeta_coeff
+
+        dm = x_delta_var_coeff - (x_zeta_var_coeff * zeta_delta_coeff - x_zeta_coeff * zeta_delta_var_coeff) / zeta_zeta_coeff**2
+
+        dn = delta_delta_var_coeff - (delta_zeta_var_coeff * zeta_delta_coeff - delta_zeta_coeff * zeta_delta_var_coeff) / zeta_zeta_coeff**2
+
+        return (dm * n - m * dn) / n**2
+
+def _arr_from_pos(pos, length):
+        return np.isin(np.arange(length), pos).astype(int)

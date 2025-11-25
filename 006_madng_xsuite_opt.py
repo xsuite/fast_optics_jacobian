@@ -19,9 +19,6 @@ tw0 = line.madng_twiss()
 # Prepare for optics matching: set limits and steps for all circuits
 lm.set_var_limits_and_steps(collider)
 
-# Inspect for one circuit
-collider.vars.vary_default['kq4.l2b2']
-
 # s.ds.l8.b1 -> ip1
 opt = line.match(
     solve=False,
@@ -41,10 +38,13 @@ opt = line.match(
                                   value = tw0['mu1_ng', 'ip1.l1'] - tw0['mu1_ng', 's.ds.l8.b1'], weight=1),
         xt.TargetRelPhaseAdvance('mu2_ng', start='s.ds.l8.b1', end='ip1.l1',\
                                   value = tw0['mu2_ng', 'ip1.l1'] - tw0['mu2_ng', 's.ds.l8.b1'], weight=1),
-    ])
+    ],
+    use_tpsa=True
+)
 
 from pyprof import timing
+timing.reset()
 timing.start_timing("Xsuite_Opt_MADNG")
-opt.step(60, broyden=True)
+opt.step(60)
 timing.stop_timing()
 timing.report()

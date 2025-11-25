@@ -11,7 +11,7 @@ from pyprof import timing
 COUNT = 10
 BROYDEN_MAX = 7
 
-plt.style.use('../../latex_presentation.mplstyle')
+#plt.style.use('../../latex_presentation.mplstyle')
 
 plt.rcParams.update({
     "font.size": 18,        # default text size
@@ -87,13 +87,14 @@ opt_ng = line.match(
             'kq6.r8b1', 'kq7.r8b1', 'kq8.r8b1', 'kq9.r8b1',
             'kq10.r8b1', 'kqtl11.r8b1', 'kqt12.r8b1', 'kqt13.r8b1'])],
     targets=[
-        xt.TargetSet(at='ip8', tars=('beta11_ng', 'beta22_ng', 'alfa11_ng', 'alfa22_ng', 'dx_ng', 'dpx_ng'), value=tw_ng, weight=1),
+        xt.TargetSet(at='ip8', tars=('beta11_ng', 'beta22_ng', 'alfa11_ng', 'alfa22_ng', 'dx_ng', 'dpx_ng'), value=tw_ng, weight=2),
         xt.TargetSet(at='ip1', beta11_ng=0.15, beta22_ng=0.1, alfa11_ng=0, alfa22_ng=0, dx_ng=0, dpx_ng=0, weight=1),
         xt.TargetRelPhaseAdvance('mu1_ng', start='s.ds.l8.b1', end='ip1.l1',
                                   value = tw_ng['mu1_ng', 'ip1.l1'] - tw_ng['mu1_ng', 's.ds.l8.b1'], weight=1),
         xt.TargetRelPhaseAdvance('mu2_ng', start='s.ds.l8.b1', end='ip1.l1',
                                   value = tw_ng['mu2_ng', 'ip1.l1'] - tw_ng['mu2_ng', 's.ds.l8.b1'], weight=1),
-    ])
+    ],
+    use_tpsa=True)
 
 opt.check_limits = False
 opt_ng.check_limits = False
@@ -175,25 +176,46 @@ def benchmark(opt, fname=None):
         data_dict = populate_dictionary(data_dict, opt, f'fd_solve_broyden_full', i)
         reset_benchmark(opt)
 
+    # for i in range(COUNT):
+    #     timing.start_timing('madngfd_solve')
+    #     opt_ng.step(100)
+    #     timing.stop_timing()
+    #     data_dict = populate_dictionary(data_dict, opt_ng, f'madngfd_solve', i)
+    #     reset_benchmark(opt_ng)
+
+    # for i in range(COUNT):
+    #     for j in range(1, BROYDEN_MAX + 1):
+    #         timing.start_timing(f'madngfd_solve_broyden_{j}')
+    #         opt_ng.step(100, broyden=j)
+    #         timing.stop_timing()
+    #         data_dict = populate_dictionary(data_dict, opt_ng, f'madngfd_solve_broyden_{j}', i)
+    #         reset_benchmark(opt_ng)
+
+    #     timing.start_timing(f'madngfd_solve_broyden_full')
+    #     opt_ng.step(100, broyden=True)
+    #     timing.stop_timing()
+    #     data_dict = populate_dictionary(data_dict, opt_ng, f'madngfd_solve_broyden_full', i)
+    #     reset_benchmark(opt_ng)
+
     for i in range(COUNT):
-        timing.start_timing('madngfd_solve')
+        timing.start_timing('tpsa_solve')
         opt_ng.step(100)
         timing.stop_timing()
-        data_dict = populate_dictionary(data_dict, opt_ng, f'madngfd_solve', i)
+        data_dict = populate_dictionary(data_dict, opt_ng, f'tpsa_solve', i)
         reset_benchmark(opt_ng)
 
     for i in range(COUNT):
         for j in range(1, BROYDEN_MAX + 1):
-            timing.start_timing(f'madngfd_solve_broyden_{j}')
+            timing.start_timing(f'tpsa_solve_broyden_{j}')
             opt_ng.step(100, broyden=j)
             timing.stop_timing()
-            data_dict = populate_dictionary(data_dict, opt_ng, f'madngfd_solve_broyden_{j}', i)
+            data_dict = populate_dictionary(data_dict, opt_ng, f'tpsa_solve_broyden_{j}', i)
             reset_benchmark(opt_ng)
 
-        timing.start_timing(f'madngfd_solve_broyden_full')
+        timing.start_timing(f'tpsa_solve_broyden_full')
         opt_ng.step(100, broyden=True)
         timing.stop_timing()
-        data_dict = populate_dictionary(data_dict, opt_ng, f'madngfd_solve_broyden_full', i)
+        data_dict = populate_dictionary(data_dict, opt_ng, f'tpsa_solve_broyden_full', i)
         reset_benchmark(opt_ng)
 
     if fname is None:
@@ -471,16 +493,20 @@ def plot_step_counts(stats, savefig=False, fname=None, figsize=(6.4, 4.8)):
         plt.savefig(fname)
     plt.show()
 
-def pipeline_visualization(data=None, do_benchmark=False, savefig=False, figsize=(6.4, 4.8), methods=['ad', 'fd']):
+def pipeline_visualization(data=None, do_benchmark=False, savefig=False, figsize=(6.4, 4.8), methods=['ad', 'fd', 'tpsa'], benchmark_dir = 'benchmarks'):
     if do_benchmark:
         assert isinstance(data, str), "If benchmark is True, data must be a filename string."
+        if benchmark_dir not in data:
+            data = f"{benchmark_dir}/{data}"
         fname = data
         data = benchmark(opt, fname=data)
     else:
         if isinstance(data, str):
-            fname = data
+            if benchmark_dir not in data:
+                data = f"{benchmark_dir}/{data}"
             if not data.endswith('.json'):
                 data += ".json"
+            fname = data
             data = get_dict_from_file(data)
         assert isinstance(data, dict), "Input data must be a dictionary or a filename string."
     df = dict_to_dataframe(data)

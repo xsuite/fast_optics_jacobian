@@ -11,7 +11,7 @@ from pyprof import timing
 COUNT = 10
 BROYDEN_MAX = 7
 
-#plt.style.use('../../latex_presentation.mplstyle')
+plt.style.use('../../latex.mplstyle')
 
 plt.rcParams.update({
     "font.size": 18,        # default text size
@@ -19,8 +19,26 @@ plt.rcParams.update({
     "axes.labelsize": 18,   # x and y labels
     "xtick.labelsize": 16,  # x tick labels
     "ytick.labelsize": 16,  # y tick labels
-    "legend.fontsize": 16,  # legend
+    "legend.fontsize": 14,  # legend
 })
+
+fonts_presentation = {
+    "font.size": 16,        # default text size
+    "axes.titlesize": 18,   # title
+    "axes.labelsize": 16,   # x and y labels
+    "xtick.labelsize": 14,  # x tick labels
+    "ytick.labelsize": 14,  # y tick labels
+    "legend.fontsize": 16,  # legend
+}
+
+fonts_paper = {
+    "font.size": 12,        # default text size
+    "axes.titlesize": 14,   # title
+    "axes.labelsize": 12,   # x and y labels
+    "xtick.labelsize": 10,  # x tick labels
+    "ytick.labelsize": 10,  # y tick labels
+    "legend.fontsize": 12,  # legend
+}
 
 # Load LHC model
 collider = xt.Environment.from_json(
@@ -68,42 +86,42 @@ opt = line.match(
     targets=[
         xt.TargetSet(at='ip8', tars=('betx', 'bety', 'alfx', 'alfy', 'dx', 'dpx'), value=tw0, weight=1),
         xt.TargetSet(at='ip1', betx=0.15, bety=0.1, alfx=0, alfy=0, dx=0, dpx=0, weight=1),
-        xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 's.ds.l8.b1'], weight=1),
-        xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 's.ds.l8.b1'], weight=1),
+        # xt.TargetRelPhaseAdvance('mux', value = tw0['mux', 'ip1.l1'] - tw0['mux', 's.ds.l8.b1'], weight=1),
+        # xt.TargetRelPhaseAdvance('muy', value = tw0['muy', 'ip1.l1'] - tw0['muy', 's.ds.l8.b1'], weight=1),
     ],
     use_ad=True)
 
 tw_ng = line.madng_twiss()
 
-opt_ng = line.match(
-    solve=False,
-    default_tol={None: 1e-8, 'beta11_ng': 1e-6, 'beta22_ng': 1e-6, 'alfa11_ng': 1e-6, 'alfa22_ng': 1e-6},
-    start='s.ds.l8.b1', end='ip1',
-    init=tw_ng, init_at=xt.START,
-    vary=[
-        xt.VaryList(['kq6.l8b1', 'kq7.l8b1', 'kq8.l8b1', 'kq9.l8b1', 'kq10.l8b1',
-            'kqtl11.l8b1', 'kqt12.l8b1', 'kqt13.l8b1',
-            'kq4.l8b1', 'kq5.l8b1', 'kq4.r8b1', 'kq5.r8b1',
-            'kq6.r8b1', 'kq7.r8b1', 'kq8.r8b1', 'kq9.r8b1',
-            'kq10.r8b1', 'kqtl11.r8b1', 'kqt12.r8b1', 'kqt13.r8b1'])],
-    targets=[
-        xt.TargetSet(at='ip8', tars=('beta11_ng', 'beta22_ng', 'alfa11_ng', 'alfa22_ng', 'dx_ng', 'dpx_ng'), value=tw_ng, weight=2),
-        xt.TargetSet(at='ip1', beta11_ng=0.15, beta22_ng=0.1, alfa11_ng=0, alfa22_ng=0, dx_ng=0, dpx_ng=0, weight=1),
-        xt.TargetRelPhaseAdvance('mu1_ng', start='s.ds.l8.b1', end='ip1.l1',
-                                  value = tw_ng['mu1_ng', 'ip1.l1'] - tw_ng['mu1_ng', 's.ds.l8.b1'], weight=1),
-        xt.TargetRelPhaseAdvance('mu2_ng', start='s.ds.l8.b1', end='ip1.l1',
-                                  value = tw_ng['mu2_ng', 'ip1.l1'] - tw_ng['mu2_ng', 's.ds.l8.b1'], weight=1),
-    ],
-    use_tpsa=True)
+# opt_ng = line.match(
+#     solve=False,
+#     default_tol={None: 1e-8, 'beta11_ng': 1e-6, 'beta22_ng': 1e-6, 'alfa11_ng': 1e-6, 'alfa22_ng': 1e-6},
+#     start='s.ds.l8.b1', end='ip1',
+#     init=tw_ng, init_at=xt.START,
+#     vary=[
+#         xt.VaryList(['kq6.l8b1', 'kq7.l8b1', 'kq8.l8b1', 'kq9.l8b1', 'kq10.l8b1',
+#             'kqtl11.l8b1', 'kqt12.l8b1', 'kqt13.l8b1',
+#             'kq4.l8b1', 'kq5.l8b1', 'kq4.r8b1', 'kq5.r8b1',
+#             'kq6.r8b1', 'kq7.r8b1', 'kq8.r8b1', 'kq9.r8b1',
+#             'kq10.r8b1', 'kqtl11.r8b1', 'kqt12.r8b1', 'kqt13.r8b1'])],
+#     targets=[
+#         xt.TargetSet(at='ip8', tars=('beta11_ng', 'beta22_ng', 'alfa11_ng', 'alfa22_ng', 'dx_ng', 'dpx_ng'), value=tw_ng, weight=2),
+#         xt.TargetSet(at='ip1', beta11_ng=0.15, beta22_ng=0.1, alfa11_ng=0, alfa22_ng=0, dx_ng=0, dpx_ng=0, weight=1),
+#         # xt.TargetRelPhaseAdvance('mu1_ng', start='s.ds.l8.b1', end='ip1.l1',
+#         #                           value = tw_ng['mu1_ng', 'ip1.l1'] - tw_ng['mu1_ng', 's.ds.l8.b1'], weight=1),
+#         # xt.TargetRelPhaseAdvance('mu2_ng', start='s.ds.l8.b1', end='ip1.l1',
+#         #                           value = tw_ng['mu2_ng', 'ip1.l1'] - tw_ng['mu2_ng', 's.ds.l8.b1'], weight=1),
+#     ],
+#     use_tpsa=True)
 
-opt.check_limits = False
-opt_ng.check_limits = False
+# opt.check_limits = False
+# opt_ng.check_limits = False
 
-timing.start_timing('jitcompile')
-opt.step(1) # JIT-compile
-timing.stop_timing()
+# timing.start_timing('jitcompile')
+# opt.step(1) # JIT-compile
+# timing.stop_timing()
 
-opt_ng.step(1)
+# opt_ng.step(1)
 
 def reset_benchmark(opt):
     opt.reload(0)
@@ -381,7 +399,7 @@ def _fix_ticks_and_legend(ax, interval_order):
     labels[-1] = labels[-1].replace("MADNGFD", "MAD-NG Twiss FD")
     ax.legend(handles, labels)
 
-def plot_runtime(stats, savefig=False, fname=None, figsize=(6.4, 4.8)):
+def plot_runtime(stats, savefig=False, fname=None, figsize=(6.4, 4.8), fonts=None):
     stats, interval_order = _normalize_intervals(stats)
     plt.figure(figsize=figsize)
     ax = plt.gca()
@@ -395,15 +413,15 @@ def plot_runtime(stats, savefig=False, fname=None, figsize=(6.4, 4.8)):
             label=method,
             capsize=5,
             marker="o",
-            linestyle="-"
+            linestyle="-",
         )
 
-    ax.set_xlabel("Consecutive Broyden Usage", fontsize=16)
-    ax.set_ylabel("Mean Runtime (s)", fontsize=16)
-    ax.set_title("Runtime Optics Matching IP1", fontsize=18)
-    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.set_xlabel("Consecutive Broyden Usage", fontsize=fonts["axes.labelsize"] if fonts else 16)
+    ax.set_ylabel("Mean Runtime (s)", fontsize=fonts["axes.labelsize"] if fonts else 16)
+    ax.set_title("Runtime Optics Matching IP1", fontsize=fonts["axes.titlesize"] if fonts else 18)
+    ax.tick_params(axis='both', which='major', labelsize=fonts["xtick.labelsize"] if fonts else 14)
     ax.grid(True, which="both", ls="--", linewidth=0.5)
-
+    ax.legend(fontsize=fonts["legend.fontsize"] if fonts else 14)
     _fix_ticks_and_legend(ax, interval_order)
 
     plt.tight_layout()
@@ -422,26 +440,33 @@ def plot_runtime(stats, savefig=False, fname=None, figsize=(6.4, 4.8)):
     plt.show()
 
 
-def plot_call_counts(stats, savefig=False, fname=None, figsize=(6.4, 4.8)):
+def plot_call_counts(stats, savefig=False, fname=None, figsize=(6.4, 4.8), fonts=None):
     stats, interval_order = _normalize_intervals(stats)
     plt.figure(figsize=figsize)
     ax = plt.gca()
 
-    for method in stats["method"].unique():
+    linewidth_arr = np.linspace(1.5 + len(stats["method"].unique()), 1.5, len(stats["method"].unique()))
+    markersize_arr = np.linspace(6 + len(stats["method"].unique()), 6, len(stats["method"].unique()))
+    linewidth_arr = [2.5, 1.5, 1.5]
+
+    for method, linewidth, markersize in zip(stats["method"].unique(), linewidth_arr, markersize_arr):
         method_data = stats[stats["method"] == method]
         ax.plot(
             method_data["interval"],
             method_data["calls"],
             label=method,
             marker="o",
-            linestyle="-"
+            linestyle="-",
+            linewidth=linewidth,
+            markersize=markersize
         )
 
-    ax.set_xlabel("Consecutive Broyden Usage", fontsize=16)
-    ax.set_ylabel("Function Calls", fontsize=16)
-    ax.set_title("Twiss Calls Matching IP1", fontsize=18)
-    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.set_xlabel("Consecutive Broyden Usage", fontsize=fonts["axes.labelsize"] if fonts else 16)
+    ax.set_ylabel("Function Calls", fontsize=fonts["axes.labelsize"] if fonts else 16)
+    ax.set_title("Twiss Calls Matching IP1", fontsize=fonts["axes.titlesize"] if fonts else 18)
+    ax.tick_params(axis='both', which='major', labelsize=fonts["xtick.labelsize"] if fonts else 14)
     ax.grid(True, which="both", ls="--", linewidth=0.5)
+    ax.legend(fontsize=fonts["legend.fontsize"] if fonts else 14)
 
     _fix_ticks_and_legend(ax, interval_order)
 
@@ -458,26 +483,32 @@ def plot_call_counts(stats, savefig=False, fname=None, figsize=(6.4, 4.8)):
     plt.show()
 
 
-def plot_step_counts(stats, savefig=False, fname=None, figsize=(6.4, 4.8)):
+def plot_step_counts(stats, savefig=False, fname=None, figsize=(6.4, 4.8), fonts=None):
     stats, interval_order = _normalize_intervals(stats)
     plt.figure(figsize=figsize)
     ax = plt.gca()
 
-    for method in stats["method"].unique():
+    linewidth_arr = np.linspace(1.5 + len(stats["method"].unique()), 1.5, len(stats["method"].unique()))
+    markersize_arr = np.linspace(6 + len(stats["method"].unique()), 6, len(stats["method"].unique()))
+
+    for method, linewidth, markersize in zip(stats["method"].unique(), linewidth_arr, markersize_arr):
         method_data = stats[stats["method"] == method]
         ax.plot(
             method_data["interval"],
             method_data["steps"],
             label=method,
             marker="o",
-            linestyle="-"
+            linestyle="-",
+            linewidth=linewidth,
+            markersize=markersize
         )
 
-    ax.set_xlabel("Consecutive Broyden Usage", fontsize=16)
-    ax.set_ylabel("Steps", fontsize=16)
-    ax.set_title("Optimization Steps Optics Matching", fontsize=18)
-    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.set_xlabel("Consecutive Broyden Usage", fontsize=fonts["axes.labelsize"] if fonts else 16)
+    ax.set_ylabel("Steps", fontsize=fonts["axes.labelsize"] if fonts else 16)
+    ax.set_title("Optimization Steps Optics Matching", fontsize=fonts["axes.titlesize"] if fonts else 18)
+    ax.tick_params(axis='both', which='major', labelsize=fonts["xtick.labelsize"] if fonts else 14)
     ax.grid(True, which="both", ls="--", linewidth=0.5)
+    ax.legend(fontsize=fonts["legend.fontsize"] if fonts else 14)
 
     _fix_ticks_and_legend(ax, interval_order)
 
@@ -493,7 +524,7 @@ def plot_step_counts(stats, savefig=False, fname=None, figsize=(6.4, 4.8)):
         plt.savefig(fname)
     plt.show()
 
-def pipeline_visualization(data=None, do_benchmark=False, savefig=False, figsize=(6.4, 4.8), methods=['ad', 'fd', 'tpsa'], benchmark_dir = 'benchmarks'):
+def pipeline_visualization(data=None, do_benchmark=False, savefig=False, figsize=(6.4, 4.8), methods=['ad', 'fd', 'tpsa'], benchmark_dir = 'benchmarks', fonts=None):
     if do_benchmark:
         assert isinstance(data, str), "If benchmark is True, data must be a filename string."
         if benchmark_dir not in data:
@@ -514,6 +545,8 @@ def pipeline_visualization(data=None, do_benchmark=False, savefig=False, figsize
     if fname.endswith('.json'):
         fname = fname[:-5]
     stats = stats[stats["method"].isin(methods)]
-    plot_runtime(stats, savefig=savefig, fname=fname, figsize=figsize)
-    plot_call_counts(stats, savefig=savefig, fname=fname, figsize=figsize)
-    plot_step_counts(stats, savefig=savefig, fname=fname, figsize=figsize)
+    fonts_dict = fonts_paper if fonts is None else fonts
+
+    plot_runtime(stats, savefig=savefig, fname=fname, figsize=figsize, fonts=fonts_dict)
+    plot_call_counts(stats, savefig=savefig, fname=fname, figsize=figsize, fonts=fonts_dict)
+    plot_step_counts(stats, savefig=savefig, fname=fname, figsize=figsize, fonts=fonts_dict)

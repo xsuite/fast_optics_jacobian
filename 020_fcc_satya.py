@@ -95,11 +95,11 @@ line = xt.load(LATTICE_PATH)
 # line.set(tt_drifts, model='exact')
 # line.set(tt_sext, model='drift-kick-drift-exact')
 # line.set(tt_quads, integrator='yoshida4')
-for i in line.elements:
-    if hasattr(i, 'rot_s_rad_no_frame'):
-        i.rot_s_rad_no_frame = 0.0
-    # if hasattr(i, 'delta_taper'):
-    #     i.delta_taper = 0.0
+# for i in line.elements:
+#     if hasattr(i, 'rot_s_rad_no_frame'):
+#         i.rot_s_rad_no_frame = 0.0
+#     if hasattr(i, 'delta_taper'):
+#         i.delta_taper = 0.0
 
 line.configure_radiation(None, None, None)
 

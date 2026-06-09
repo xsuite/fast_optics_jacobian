@@ -7,3 +7,6 @@
 .vscode/
 __pycache__/
 *.txt
+.jax_cache/
+gtpsa_lib/build/
+# gtpsa_lib/libgtpsa.so

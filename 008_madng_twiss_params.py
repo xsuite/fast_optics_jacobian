@@ -1,18 +1,7 @@
-import xtrack as xt
-from xtrack._temp import lhc_match as lm
-import numpy as np
-import time
-import matplotlib.pyplot as plt
+from utils import load_hllhc_b1
 
 # Load LHC model
-collider = xt.Environment.from_json(
-    '../xtrack/test_data/hllhc15_thick/hllhc15_collider_thick.json')
-collider.vars.load_madx(
-    '../xtrack/test_data/hllhc15_thick/opt_round_150_1500.madx')
-
-collider.build_trackers()
-
-line = collider.lhcb1
+collider, line = load_hllhc_b1(set_var_limits=False)
 
 
 mng = line.to_madng(sequence_name='lhcb1', keep_files=True, debug=True, redirect_stderr=True, stdout='log_madng.txt')

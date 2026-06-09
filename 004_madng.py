@@ -1,18 +1,7 @@
-import xtrack as xt
-from xtrack._temp import lhc_match as lm
-import numpy as np
-import time
-import matplotlib.pyplot as plt
+from utils import load_hllhc_b1
 
 # Load LHC model
-collider = xt.Environment.from_json(
-    '../xtrack/test_data/hllhc15_thick/hllhc15_collider_thick.json')
-collider.vars.load_madx(
-    '../xtrack/test_data/hllhc15_thick/opt_round_150_1500.madx')
-
-collider.build_trackers()
-
-line = collider.lhcb1
+collider, line = load_hllhc_b1(set_var_limits=False)
 
 mng = line.to_madng(sequence_name='lhcb1')
 
@@ -61,11 +50,14 @@ mng.send("""
     print("TIME: ",time_2 / 10, " s per twiss")
 """)
 
-mng.send("""
+mng.send(
+    """
 match {
     command := twiss {sequence = lhcb1, X0=X0, range = 's.ds.l8.b1/ip1'},
     variables = { rtol=1e-6,
-         """ + set_var_string(varylist) + """
+         """
+    + set_var_string(varylist)
+    + """
     },
     equalities = { tol=1e-4,
         { expr=\\t -> t.ip8.beta11-0.15, kind='beta', name='betx_ip8'},
@@ -73,13 +65,13 @@ match {
         { expr=\\t -> t.ip8.alfa11, kind='alfa', name='alfx_ip8'},
         { expr=\\t -> t.ip8.alfa22, kind='alfa', name='alfy_ip8'},
         { expr=\\t -> t.ip8.dx, kind='dx', name='dx_ip8'},
-        { expr=\\t -> t.ip8.dpx, kind='dpx', name='dy_ip8'},
+        { expr=\\t -> t.ip8.dpx, kind='dpx', name='dpx_ip8'},
         { expr=\\t -> t.ip1.beta11-0.15, kind='beta', name='betx_ip1'},
         { expr=\\t -> t.ip1.beta22-0.1, kind='beta', name='bety_ip1'},
         { expr=\\t -> t.ip1.alfa11, kind='alfa', name='alfx_ip1'},
         { expr=\\t -> t.ip1.alfa22, kind='alfa', name='alfy_ip1'},
         { expr=\\t -> t.ip1.dx, kind='dx', name='dx_ip1'},
-        { expr=\\t -> t.ip1.dpx, kind='dpx', name='dy_ip1'},
+        { expr=\\t -> t.ip1.dpx, kind='dpx', name='dpx_ip1'},
         { expr=\\t -> t["ip1.l1"].mu1 - mu1_to_ip1, kind='mu', name='mux_ip1'},
         { expr=\\t -> t["ip1.l1"].mu2 - mu2_to_ip1, kind='mu', name='muy_ip1'},
         ! { expr=\\t -> t.q1 - mu1_to_ip1, kind='mu', name='mux_ip1'},
@@ -99,4 +91,5 @@ match {
     info = 2,
     maxcall = 1000,
 }
-""")
+"""
+)

@@ -1,5 +1,5 @@
 import xtrack as xt
-from xtrack._temp import lhc_match as lm
+from utils import load_hllhc_b1
 import numpy as np
 import matplotlib.pyplot as plt
 from xtrack.madng_interface import madng_get_init
@@ -10,20 +10,11 @@ from pyprof import timing
 timing.reset()
 
 # Load LHC model
-collider = xt.Environment.from_json(
-    '../xtrack/test_data/hllhc15_thick/hllhc15_collider_thick.json')
-collider.vars.load_madx(
-    '../xtrack/test_data/hllhc15_thick/opt_round_150_1500.madx')
-
-collider.build_trackers()
-
-line = collider.lhcb1
+collider, line = load_hllhc_b1()
 
 # Initial twiss
 tw0 = line.twiss()
 
-# Prepare for optics matching: set limits and steps for all circuits
-lm.set_var_limits_and_steps(collider)
 
 start = 's.ds.l8.b1'
 end = 'ip1'

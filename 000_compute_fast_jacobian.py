@@ -1,21 +1,14 @@
 import xtrack as xt
-from xtrack._temp import lhc_match as lm
+from utils import load_hllhc_b1
 import numpy as np
 import sympy
 import time
 
-# Add missing method to twiss table
+# Add missing method to twiss table monkey patch
 import twiss_deriv
 
 # Load LHC model
-collider = xt.Environment.from_json(
-    '../../xtrack/test_data/hllhc15_thick/hllhc15_collider_thick.json')
-collider.vars.load_madx(
-    '../../xtrack/test_data/hllhc15_thick/opt_round_150_1500.madx')
-
-collider.build_trackers()
-
-line = collider.lhcb1
+collider, line = load_hllhc_b1()
 
 line.cycle('ip7', inplace=True)
 
@@ -26,8 +19,6 @@ tw0 = line.twiss()
 tw0.rows['ip.*'].cols['betx bety mux muy x y']
 
 
-# Prepare for optics matching: set limits and steps for all circuits
-lm.set_var_limits_and_steps(collider)
 
 # Inspect for one circuit
 collider.vars.vary_default['kq4.l2b2']

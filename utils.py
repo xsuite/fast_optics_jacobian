@@ -122,12 +122,12 @@ def load_hllhc_b1(set_var_limits=True):
 # --------------------------------------------------------------------------- #
 # 1. IR8 optics match: s.ds.l8.b1 -> ip1, 20 knobs, 14 targets.
 # --------------------------------------------------------------------------- #
-def _ir8_targets(tw0, madng):
+def _ir8_targets(tw0, madng_names=False):
     """Targets + default_tol for the IR8 optics match (Xsuite or MAD-NG names)."""
-    b1, b2 = ("beta11_ng", "beta22_ng") if madng else ("betx", "bety")
-    a1, a2 = ("alfa11_ng", "alfa22_ng") if madng else ("alfx", "alfy")
-    dx, dpx = ("dx_ng", "dpx_ng") if madng else ("dx", "dpx")
-    mu1, mu2 = ("mu1_ng", "mu2_ng") if madng else ("mux", "muy")
+    b1, b2 = ("beta11_ng", "beta22_ng") if madng_names else ("betx", "bety")
+    a1, a2 = ("alfa11_ng", "alfa22_ng") if madng_names else ("alfx", "alfy")
+    dx, dpx = ("dx_ng", "dpx_ng") if madng_names else ("dx", "dpx")
+    mu1, mu2 = ("mu1_ng", "mu2_ng") if madng_names else ("mux", "muy")
 
     targets = [
         xt.TargetSet(at="ip8", tars=(b1, b2, a1, a2, dx, dpx), value=tw0, weight=1),
@@ -169,12 +169,14 @@ def ir8_optics(line=None, tw0=None, *, solve=False, **match_kwargs):
     solve, **match_kwargs
         Forwarded to ``line.match`` (backend flags, ``default_tol``, ...).
     """
-    madng = True if "use_tpsa" in match_kwargs else False
+    madng = True if "use_tpsa" in match_kwargs and match_kwargs["use_tpsa"] else False
+    # find madng_names from match_kwargs
+    madng_names = match_kwargs.get("madng_names", madng)
     if line is None:
         _, line = load_hllhc_b1()
     if tw0 is None:
         tw0 = line.madng_twiss() if madng else line.twiss()
-    targets, tol = _ir8_targets(tw0, madng)
+    targets, tol = _ir8_targets(tw0, madng_names=madng_names)
     match_kwargs.setdefault("default_tol", tol)
     return line.match(
         solve=solve,

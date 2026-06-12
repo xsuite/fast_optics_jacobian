@@ -350,9 +350,9 @@ def bend_edge_coeffs(e):
             "rbend straight-body edges are not supported "
             f"(element {getattr(e, 'name', '?')!r})"
         )
-    adiff = float(getattr(e, "rbend_angle_diff", 0.0)) if is_rbend else 0.0
-    aug_in = (angle - adiff) / 2.0 if is_rbend else 0.0
-    aug_out = (angle + adiff) / 2.0 if is_rbend else 0.0
+    angle_diff = float(getattr(e, "rbend_angle_diff", 0.0)) if is_rbend else 0.0
+    aug_in = (angle - angle_diff) / 2.0 if is_rbend else 0.0
+    aug_out = (angle + angle_diff) / 2.0 if is_rbend else 0.0
 
     def _face(active, model, e_ang, e_fd, fint, hgap, aug):
         if not int(active):
